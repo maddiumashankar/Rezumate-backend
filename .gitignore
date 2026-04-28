@@ -1,0 +1,50 @@
+# ── Dependencies ──
+node_modules/
+
+# ── Build Output ──
+dist/
+
+# ── Environment Variables ──
+.env
+
+# ── Database ──
+data/
+*.db
+*.db-journal
+
+# ── Logs ──
+*.log
+logs/
+
+# ── OS Files ──
+.DS_Store
+Thumbs.db
+
+# ── IDE / Editor ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Temporary Files ──
+tmp/
+temp/
+
+# ── Python (rezumate-ai) ──
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.eggs/
+
+# ── Docker ──
+.docker/
+
+# ── Coverage / Testing ──
+coverage/
+.nyc_output/
+.pytest_cache/
+htmlcov/

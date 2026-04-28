@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rezumate AI — Zero-Cost Agentic Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #0a0a0f;
+    color: #e0e0e0;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .hero {
+    text-align: center;
+    padding: 50px 20px 30px;
+    position: relative;
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero h1 {
+    font-size: 2.8rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #818cf8, #6366f1, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .hero .subtitle {
+    font-size: 1.1rem;
+    color: #9ca3af;
+    font-weight: 300;
+  }
+  .hero .badge {
+    display: inline-block;
+    margin-top: 14px;
+    padding: 6px 18px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: rgba(34,197,94,0.12);
+    color: #4ade80;
+    border: 1px solid rgba(34,197,94,0.25);
+  }
+
+  /* ── Architecture Container ── */
+  .arch-container {
+    max-width: 1200px;
+    margin: 0 auto 50px;
+    padding: 0 24px;
+  }
+
+  /* ── Layer Styles ── */
+  .layer {
+    margin-bottom: 18px;
+    border-radius: 16px;
+    padding: 24px;
+    position: relative;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .layer-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .layer-label .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .layer-user      { background: rgba(99,102,241,0.04); }
+  .layer-api       { background: rgba(59,130,246,0.04); }
+  .layer-agent     { background: rgba(168,85,247,0.04); }
+  .layer-rag       { background: rgba(234,179,8,0.04); }
+  .layer-llm       { background: rgba(34,197,94,0.04); }
+  .layer-data      { background: rgba(244,63,94,0.04); }
+
+  .layer-user .layer-label   { color: #818cf8; }
+  .layer-api .layer-label    { color: #60a5fa; }
+  .layer-agent .layer-label  { color: #c084fc; }
+  .layer-rag .layer-label    { color: #facc15; }
+  .layer-llm .layer-label    { color: #4ade80; }
+  .layer-data .layer-label   { color: #fb7185; }
+
+  .layer-user .dot  { background: #818cf8; }
+  .layer-api .dot   { background: #60a5fa; }
+  .layer-agent .dot { background: #c084fc; }
+  .layer-rag .dot   { background: #facc15; }
+  .layer-llm .dot   { background: #4ade80; }
+  .layer-data .dot  { background: #fb7185; }
+
+  /* ── Cards Grid ── */
+  .cards {
+    display: grid;
+    gap: 12px;
+  }
+  .cards-2 { grid-template-columns: 1fr 1fr; }
+  .cards-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .cards-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .cards-5 { grid-template-columns: 1fr 1fr 1fr 1fr 1fr; }
+
+  .card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    padding: 18px;
+    transition: all 0.25s ease;
+  }
+  .card:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.12);
+    transform: translateY(-2px);
+  }
+  .card-icon {
+    font-size: 1.6rem;
+    margin-bottom: 8px;
+  }
+  .card h3 {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #f3f4f6;
+    margin-bottom: 4px;
+  }
+  .card .tech {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    display: inline-block;
+    margin-bottom: 8px;
+  }
+  .tech-green  { background: rgba(34,197,94,0.15); color: #4ade80; }
+  .tech-blue   { background: rgba(59,130,246,0.15); color: #60a5fa; }
+  .tech-purple { background: rgba(168,85,247,0.15); color: #c084fc; }
+  .tech-yellow { background: rgba(234,179,8,0.15); color: #facc15; }
+  .tech-red    { background: rgba(244,63,94,0.15); color: #fb7185; }
+  .tech-indigo { background: rgba(99,102,241,0.15); color: #818cf8; }
+
+  .card p {
+    font-size: 0.8rem;
+    color: #9ca3af;
+    line-height: 1.5;
+  }
+
+  /* ── Flow Arrows ── */
+  .flow-arrow {
+    text-align: center;
+    padding: 6px 0;
+    color: #4b5563;
+    font-size: 1.2rem;
+    letter-spacing: 4px;
+  }
+
+  /* ── Stack Table ── */
+  .stack-section {
+    max-width: 1200px;
+    margin: 40px auto;
+    padding: 0 24px;
+  }
+  .stack-section h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: #f3f4f6;
+  }
+  .stack-table {
+    width: 100%;
+    border-collapse: collapse;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .stack-table th {
+    background: rgba(255,255,255,0.04);
+    padding: 14px 20px;
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #9ca3af;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .stack-table td {
+    padding: 14px 20px;
+    font-size: 0.85rem;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: #d1d5db;
+  }
+  .stack-table tr:hover td {
+    background: rgba(255,255,255,0.02);
+  }
+  .cost-free {
+    color: #4ade80;
+    font-weight: 600;
+  }
+
+  /* ── Agent Flow Section ── */
+  .agent-flow {
+    max-width: 1200px;
+    margin: 40px auto;
+    padding: 0 24px;
+  }
+  .agent-flow h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: #f3f4f6;
+  }
+  .flow-diagram {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+    padding: 20px 0;
+  }
+  .flow-step {
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    padding: 20px 16px;
+    text-align: center;
+    min-width: 140px;
+    transition: all 0.25s ease;
+  }
+  .flow-step:hover {
+    background: rgba(255,255,255,0.06);
+    transform: translateY(-2px);
+  }
+  .flow-step .step-num {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #6366f1;
+    margin-bottom: 6px;
+  }
+  .flow-step .step-icon { font-size: 1.5rem; margin-bottom: 6px; }
+  .flow-step .step-name { font-size: 0.82rem; font-weight: 600; color: #f3f4f6; }
+  .flow-step .step-tool { font-size: 0.7rem; color: #9ca3af; margin-top: 4px; }
+  .flow-connector {
+    flex-shrink: 0;
+    color: #4b5563;
+    font-size: 1.1rem;
+    padding: 0 4px;
+  }
+
+  /* ── Footer ── */
+  .footer-note {
+    max-width: 1200px;
+    margin: 40px auto 60px;
+    padding: 24px;
+    text-align: center;
+    background: rgba(99,102,241,0.05);
+    border: 1px solid rgba(99,102,241,0.12);
+    border-radius: 12px;
+    font-size: 0.85rem;
+    color: #9ca3af;
+    line-height: 1.7;
+  }
+  .footer-note strong { color: #818cf8; }
+
+  @media (max-width: 768px) {
+    .cards-3, .cards-4, .cards-5 { grid-template-columns: 1fr 1fr; }
+    .hero h1 { font-size: 2rem; }
+    .flow-diagram { flex-wrap: wrap; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Hero ── -->
+<div class="hero">
+  <h1>Rezumate AI</h1>
+  <p class="subtitle">Dedicated Agentic AI — Fully Open-Source Architecture</p>
+  <div class="badge">$0 / month — 100% self-hosted</div>
+</div>
+
+<!-- ── Architecture Layers ── -->
+<div class="arch-container">
+
+  <!-- Layer 1: User Interface -->
+  <div class="layer layer-user">
+    <div class="layer-label"><span class="dot"></span> LAYER 1 — USER INTERFACE</div>
+    <div class="cards cards-3">
+      <div class="card">
+        <div class="card-icon">🌐</div>
+        <span class="tech tech-indigo">Streamlit / Gradio</span>
+        <h3>Web App</h3>
+        <p>Upload resume, paste JD, interact with AI agent via chat</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <span class="tech tech-indigo">FastAPI</span>
+        <h3>REST API</h3>
+        <p>Programmatic access for integrations & batch processing</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">💬</div>
+        <span class="tech tech-indigo">WebSocket</span>
+        <h3>Real-time Chat</h3>
+        <p>Streaming agent responses & iterative resume refinement</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">▼ ▼ ▼</div>
+
+  <!-- Layer 2: API Gateway -->
+  <div class="layer layer-api">
+    <div class="layer-label"><span class="dot"></span> LAYER 2 — API GATEWAY & ROUTING</div>
+    <div class="cards cards-2">
+      <div class="card">
+        <div class="card-icon">🔀</div>
+        <span class="tech tech-blue">FastAPI Router</span>
+        <h3>Request Router</h3>
+        <p>Routes user intent to the correct agent: resume analysis, JD matching, ATS scoring, or rewrite</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔐</div>
+        <span class="tech tech-blue">JWT + Rate Limit</span>
+        <h3>Auth & Throttle</h3>
+        <p>User auth, session management, rate limiting — all free with open-source middleware</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">▼ ▼ ▼</div>
+
+  <!-- Layer 3: Agentic Orchestration -->
+  <div class="layer layer-agent">
+    <div class="layer-label"><span class="dot"></span> LAYER 3 — AGENTIC ORCHESTRATION (THE BRAIN)</div>
+    <div class="cards cards-5">
+      <div class="card">
+        <div class="card-icon">🧠</div>
+        <span class="tech tech-purple">LangGraph</span>
+        <h3>Supervisor Agent</h3>
+        <p>Master orchestrator — plans, delegates, & loops until quality passes</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📄</div>
+        <span class="tech tech-purple">Agent Node</span>
+        <h3>Resume Parser</h3>
+        <p>Extracts skills, experience, education into structured format</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🎯</div>
+        <span class="tech tech-purple">Agent Node</span>
+        <h3>JD Matcher</h3>
+        <p>Compares resume ↔ job description, finds gaps & matches</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📊</div>
+        <span class="tech tech-purple">Agent Node</span>
+        <h3>ATS Scorer</h3>
+        <p>Scores resume against ATS keyword & formatting rules</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">✍️</div>
+        <span class="tech tech-purple">Agent Node</span>
+        <h3>Rewriter</h3>
+        <p>Rewrites bullets, summary, & skills to maximize match</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">▼ ▼ ▼</div>
+
+  <!-- Layer 4: RAG Pipeline -->
+  <div class="layer layer-rag">
+    <div class="layer-label"><span class="dot"></span> LAYER 4 — RAG PIPELINE (KNOWLEDGE LAYER)</div>
+    <div class="cards cards-4">
+      <div class="card">
+        <div class="card-icon">🔤</div>
+        <span class="tech tech-yellow">sentence-transformers</span>
+        <h3>Embedding Model</h3>
+        <p>all-MiniLM-L6-v2 — converts text to vectors, runs locally, zero cost</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🗃️</div>
+        <span class="tech tech-yellow">ChromaDB</span>
+        <h3>Vector Store</h3>
+        <p>Stores & retrieves resume templates, JD patterns, industry keywords</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔍</div>
+        <span class="tech tech-yellow">LangChain Retriever</span>
+        <h3>Context Retriever</h3>
+        <p>Semantic search over knowledge base — best practices, power verbs, formats</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📚</div>
+        <span class="tech tech-yellow">Document Loaders</span>
+        <h3>Doc Ingestion</h3>
+        <p>PDF, DOCX, TXT parsing via PyMuPDF & python-docx — feeds knowledge base</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">▼ ▼ ▼</div>
+
+  <!-- Layer 5: LLM Engine -->
+  <div class="layer layer-llm">
+    <div class="layer-label"><span class="dot"></span> LAYER 5 — LLM ENGINE (SELF-HOSTED)</div>
+    <div class="cards cards-3">
+      <div class="card">
+        <div class="card-icon">🦙</div>
+        <span class="tech tech-green">Ollama</span>
+        <h3>Model Server</h3>
+        <p>One-command local LLM server. Runs Llama 3.1 8B or Mistral 7B on your machine</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚙️</div>
+        <span class="tech tech-green">Llama 3.1 8B / Mistral 7B</span>
+        <h3>Primary Model</h3>
+        <p>Strong open-source models. 8B params runs well on 16GB RAM or a basic GPU</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🪶</div>
+        <span class="tech tech-green">Phi-3 Mini / Qwen2 1.5B</span>
+        <h3>Lightweight Model</h3>
+        <p>For quick tasks: classification, keyword extraction, ATS scoring. Runs on CPU</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">▼ ▼ ▼</div>
+
+  <!-- Layer 6: Data & Storage -->
+  <div class="layer layer-data">
+    <div class="layer-label"><span class="dot"></span> LAYER 6 — DATA & STORAGE</div>
+    <div class="cards cards-4">
+      <div class="card">
+        <div class="card-icon">🐘</div>
+        <span class="tech tech-red">SQLite / PostgreSQL</span>
+        <h3>User DB</h3>
+        <p>User profiles, resume history, saved jobs, session data</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📁</div>
+        <span class="tech tech-red">Local Filesystem</span>
+        <h3>File Storage</h3>
+        <p>Resume PDFs, generated outputs, templates — no S3 needed</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🧩</div>
+        <span class="tech tech-red">ChromaDB</span>
+        <h3>Vector DB</h3>
+        <p>Persistent vector storage for RAG — embedded, no separate server</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">💾</div>
+        <span class="tech tech-red">Redis (optional)</span>
+        <h3>Cache Layer</h3>
+        <p>Cache frequent queries & embeddings for speed. Optional but free</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Agent Flow ── -->
+<div class="agent-flow">
+  <h2>Agentic Flow — How a Resume Gets Processed</h2>
+  <div class="flow-diagram">
+    <div class="flow-step">
+      <div class="step-num">STEP 1</div>
+      <div class="step-icon">📤</div>
+      <div class="step-name">Upload</div>
+      <div class="step-tool">Resume + JD</div>
+    </div>
+    <div class="flow-connector">→</div>
+    <div class="flow-step">
+      <div class="step-num">STEP 2</div>
+      <div class="step-icon">🔍</div>
+      <div class="step-name">Parse</div>
+      <div class="step-tool">PyMuPDF / docx</div>
+    </div>
+    <div class="flow-connector">→</div>
+    <div class="flow-step">
+      <div class="step-num">STEP 3</div>
+      <div class="step-icon">🧠</div>
+      <div class="step-name">Analyze</div>
+      <div class="step-tool">LangGraph Agent</div>
+    </div>
+    <div class="flow-connector">→</div>
+    <div class="flow-step">
+      <div class="step-num">STEP 4</div>
+      <div class="step-icon">📚</div>
+      <div class="step-name">RAG Lookup</div>
+      <div class="step-tool">ChromaDB Search</div>
+    </div>
+    <div class="flow-connector">→</div>
+    <div class="flow-step">
+      <div class="step-num">STEP 5</div>
+      <div class="step-icon">🎯</div>
+      <div class="step-name">Score & Match</div>
+      <div class="step-tool">ATS Agent</div>
+    </div>
+    <div class="flow-connector">→</div>
+    <div class="flow-step">
+      <div class="step-num">STEP 6</div>
+      <div class="step-icon">✍️</div>
+      <div class="step-name">Rewrite</div>
+      <div class="step-tool">Llama 3.1 via Ollama</div>
+    </div>
+    <div class="flow-connector">→</div>
+    <div class="flow-step">
+      <div class="step-num">STEP 7</div>
+      <div class="step-icon">🔄</div>
+      <div class="step-name">Self-Review</div>
+      <div class="step-tool">Supervisor Loop</div>
+    </div>
+    <div class="flow-connector">→</div>
+    <div class="flow-step">
+      <div class="step-num">STEP 8</div>
+      <div class="step-icon">📥</div>
+      <div class="step-name">Deliver</div>
+      <div class="step-tool">PDF / DOCX output</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Tech Stack Table ── -->
+<div class="stack-section">
+  <h2>Complete Tech Stack — All Free & Open Source</h2>
+  <table class="stack-table">
+    <thead>
+      <tr>
+        <th>Component</th>
+        <th>Technology</th>
+        <th>Purpose</th>
+        <th>License</th>
+        <th>Cost</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>LLM Server</td>
+        <td>Ollama</td>
+        <td>Run models locally with one command</td>
+        <td>MIT</td>
+        <td class="cost-free">$0</td>
+      </tr>
+      <tr>
+        <td>Primary LLM</td>
+        <td>Llama 3.1 8B</td>
+        <td>Resume rewriting, analysis, chat</td>
+        <td>Llama 3.1 Community</td>
+        <td class="cost-free">$0</td>
+      </tr>
+      <tr>
+        <td>Light LLM</td>
+        <td>Phi-3 Mini / Qwen2</td>
+        <td>Classification, scoring, extraction</td>
+        <td>MIT / Apache 2.0</td>
+        <td class="cost-free">$0</td>
+      </tr>
+      <tr>
+        <td>Agent Framework</td>
+        <td>LangGraph</td>
+        <td>Multi-agent orchestration with loops</td>
+        <td>MIT</td>
+        <td class="cost-free">$0</td>
+      </tr>
+      <tr>
+        <td>RAG Framework</td>
+        <td>LangChain</td>
+        <td>RAG pipeline, chains, retrievers</td>
+        <td>MIT</td>
+        <td class="cost-free">$0</td>
+      </tr>
+      <tr>
+        <td>Embeddings</td>
+        <td>sentence-transformers</td>
+        <td>Local text embeddings (all-MiniLM-L6-v2)</td>
+        <td>Apache 2.0</td>
+        <td class="cost-free">$0</td>
+      </tr>
+      <tr>
+        <td>Vector DB</td>
+        <td>ChromaDB</td>
+        <td>Store & search resume/JD knowledge</td>
+        <td>Apache 2.0</td>
+        <td class="cost-free">$0</td>
+      </tr>
+      <tr>
+        <td>App DB</td>
+        <td>SQLite → PostgreSQL</td>
+        <td>Users, history, sessions</td>
+        <td>Public Domain / PostgreSQL</td>
+        <td class="cost-free">$0</td>
+      </tr>
+      <tr>
+        <td>Frontend</td>
+        <td>Streamlit / Gradio</td>
+        <td>Web UI for resume upload & chat</td>
+        <td>Apache 2.0</td>
+        <td class="cost-free">$0</td>
+      </tr>
+      <tr>
+        <td>Backend API</td>
+        <td>FastAPI</td>
+        <td>REST API + WebSocket support</td>
+        <td>MIT</td>
+        <td class="cost-free">$0</td>
+      </tr>
+      <tr>
+        <td>Doc Parsing</td>
+        <td>PyMuPDF + python-docx</td>
+        <td>Extract text from PDF/DOCX resumes</td>
+        <td>AGPL / MIT</td>
+        <td class="cost-free">$0</td>
+      </tr>
+      <tr>
+        <td>PDF Generation</td>
+        <td>WeasyPrint / ReportLab</td>
+        <td>Generate polished resume PDFs</td>
+        <td>BSD</td>
+        <td class="cost-free">$0</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Footer Note ── -->
+<div class="stack-section">
+  <div class="footer-note">
+    <strong>Hardware Requirements:</strong> Llama 3.1 8B runs comfortably on a machine with 16GB RAM + any NVIDIA GPU (even GTX 1060).
+    For CPU-only, use Phi-3 Mini (3.8B) or quantized models (GGUF Q4). <br>
+    <strong>Scaling Path:</strong> Start local → Docker Compose for team → Kubernetes + vLLM for production scale. <br>
+    <strong>Total Monthly Cost:</strong> <span style="color: #4ade80; font-weight: 700;">$0</span> (electricity & hardware you already own)
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,78 @@
+{
+  "id": "tpl_mid_tech",
+  "name": "Mid Level - Technology",
+  "category": "mid_level",
+  "industry": "Technology",
+  "description": "Professional template for developers with 3-7 years of experience.",
+  "content": {
+    "personal": {
+      "fullName": "",
+      "email": "",
+      "phone": "",
+      "location": "",
+      "linkedIn": "",
+      "github": "",
+      "portfolio": "",
+      "title": "Senior Software Engineer"
+    },
+    "summary": "Results-driven software engineer with 5+ years of experience building scalable web applications and microservices. Proven track record of leading technical initiatives that improved system performance and team productivity. Passionate about clean architecture and mentoring junior developers.",
+    "experience": [
+      {
+        "id": "exp_1",
+        "company": "Current Company",
+        "title": "Senior Software Engineer",
+        "location": "City, State",
+        "startDate": "2022-01",
+        "endDate": null,
+        "isCurrent": true,
+        "bullets": [
+          "Led the migration of monolithic application to microservices architecture, reducing deployment time by 60%",
+          "Architected and implemented real-time data processing pipeline handling 10M+ events daily",
+          "Mentored 4 junior developers through code reviews, pair programming, and technical design sessions",
+          "Reduced infrastructure costs by 35% through optimization of cloud resources and caching strategies"
+        ],
+        "technologies": ["TypeScript", "React", "Node.js", "AWS", "Kubernetes", "PostgreSQL"]
+      },
+      {
+        "id": "exp_2",
+        "company": "Previous Company",
+        "title": "Software Engineer",
+        "location": "City, State",
+        "startDate": "2019-06",
+        "endDate": "2021-12",
+        "isCurrent": false,
+        "bullets": [
+          "Developed customer-facing features used by 500K+ monthly active users",
+          "Implemented automated testing framework that increased code coverage from 40% to 85%",
+          "Collaborated with product and design teams to deliver features 20% ahead of schedule"
+        ],
+        "technologies": ["JavaScript", "React", "Python", "Django", "Docker"]
+      }
+    ],
+    "education": [
+      {
+        "id": "edu_1",
+        "institution": "University Name",
+        "degree": "Bachelor of Science",
+        "field": "Computer Science",
+        "startDate": "2015-08",
+        "endDate": "2019-05",
+        "gpa": null,
+        "highlights": []
+      }
+    ],
+    "skills": [
+      { "category": "Languages", "skills": ["TypeScript", "JavaScript", "Python", "Go", "SQL"] },
+      { "category": "Frontend", "skills": ["React", "Next.js", "Vue.js", "Tailwind CSS"] },
+      { "category": "Backend", "skills": ["Node.js", "Express", "FastAPI", "GraphQL"] },
+      { "category": "Cloud & DevOps", "skills": ["AWS", "Docker", "Kubernetes", "Terraform", "CI/CD"] },
+      { "category": "Databases", "skills": ["PostgreSQL", "MongoDB", "Redis", "Elasticsearch"] }
+    ],
+    "certifications": [
+      { "name": "AWS Solutions Architect Associate", "issuer": "Amazon Web Services", "date": "2023-03", "expiryDate": null, "credentialId": null }
+    ],
+    "projects": [],
+    "languages": [{ "language": "English", "proficiency": "native" }],
+    "customSections": []
+  }
+}

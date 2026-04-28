@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "resume-parser": {
+      "command": "python",
+      "args": ["mcp_servers/resume_parser/server.py"],
+      "description": "Parses PDF/DOCX resumes into structured data. No LLM."
+    },
+    "ats-scorer": {
+      "command": "python",
+      "args": ["mcp_servers/ats_scorer/server.py"],
+      "description": "Scores resumes against JDs using TF-IDF and rules. No LLM."
+    },
+    "keyword-matcher": {
+      "command": "python",
+      "args": ["mcp_servers/keyword_matcher/server.py"],
+      "description": "Semantic skill matching using sentence-transformers embeddings. No LLM."
+    },
+    "latex-builder": {
+      "command": "python",
+      "args": ["mcp_servers/latex_builder/server.py"],
+      "description": "Builds resume PDFs from structured data using LaTeX templates. No LLM."
+    }
+  },
+  "llm": {
+    "provider": "ollama",
+    "base_url": "http://localhost:11434",
+    "models": {
+      "primary": "qwen2:1.5b",
+      "fallback": "phi3:mini",
+      "heavy": "llama3.1:8b"
+    },
+    "note": "LLM is only used for bullet rewriting and summary generation. All other tasks are rule-based MCP tools."
+  }
+}

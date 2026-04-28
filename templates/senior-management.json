@@ -1,0 +1,75 @@
+{
+  "id": "tpl_senior_mgmt",
+  "name": "Senior - Engineering Management",
+  "category": "senior",
+  "industry": "Technology",
+  "description": "Executive template for senior engineers and engineering managers.",
+  "content": {
+    "personal": {
+      "fullName": "",
+      "email": "",
+      "phone": "",
+      "location": "",
+      "linkedIn": "",
+      "github": "",
+      "portfolio": "",
+      "title": "Engineering Manager"
+    },
+    "summary": "Strategic engineering leader with 10+ years of experience building and scaling high-performing engineering teams. Track record of delivering complex technical initiatives that drive business growth, managing teams of 15+ engineers, and establishing engineering best practices across organizations.",
+    "experience": [
+      {
+        "id": "exp_1",
+        "company": "Company Name",
+        "title": "Engineering Manager",
+        "location": "City, State",
+        "startDate": "2021-01",
+        "endDate": null,
+        "isCurrent": true,
+        "bullets": [
+          "Led a team of 15 engineers across 3 squads, delivering a platform serving 2M+ daily active users",
+          "Drove engineering roadmap resulting in 40% improvement in system reliability (99.95% → 99.99% uptime)",
+          "Established hiring pipeline that reduced time-to-hire by 30% and improved retention by 25%",
+          "Implemented OKR framework and quarterly planning process adopted across the engineering org",
+          "Managed $2M annual infrastructure budget, achieving 20% cost reduction through strategic optimization"
+        ],
+        "technologies": ["System Design", "Team Leadership", "Agile", "AWS", "Kubernetes"]
+      },
+      {
+        "id": "exp_2",
+        "company": "Previous Company",
+        "title": "Staff Software Engineer",
+        "location": "City, State",
+        "startDate": "2017-03",
+        "endDate": "2020-12",
+        "isCurrent": false,
+        "bullets": [
+          "Architected microservices platform processing $50M+ in annual transactions",
+          "Led cross-functional initiative to modernize legacy systems, reducing technical debt by 60%",
+          "Mentored 8 engineers, with 3 promoted to senior roles within 18 months"
+        ],
+        "technologies": ["Distributed Systems", "Microservices", "Go", "Python", "AWS"]
+      }
+    ],
+    "education": [
+      {
+        "id": "edu_1",
+        "institution": "University Name",
+        "degree": "Master of Science",
+        "field": "Computer Science",
+        "startDate": "2013-08",
+        "endDate": "2015-05",
+        "gpa": null,
+        "highlights": []
+      }
+    ],
+    "skills": [
+      { "category": "Leadership", "skills": ["Team Building", "Strategic Planning", "OKRs", "Mentoring", "Stakeholder Management"] },
+      { "category": "Technical", "skills": ["System Design", "Distributed Systems", "Cloud Architecture", "DevOps", "Security"] },
+      { "category": "Methodologies", "skills": ["Agile/Scrum", "Kanban", "CI/CD", "TDD", "Code Review"] }
+    ],
+    "certifications": [],
+    "projects": [],
+    "languages": [{ "language": "English", "proficiency": "native" }],
+    "customSections": []
+  }
+}

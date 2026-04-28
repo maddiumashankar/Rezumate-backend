@@ -1,0 +1,33 @@
+{
+  "software_engineering": [
+    "Python", "JavaScript", "TypeScript", "Java", "Go", "Rust", "C++",
+    "React", "Angular", "Vue.js", "Node.js", "FastAPI", "Django", "Flask",
+    "Docker", "Kubernetes", "AWS", "GCP", "Azure", "Terraform",
+    "CI/CD", "Git", "GitHub Actions", "Jenkins", "CircleCI",
+    "PostgreSQL", "MongoDB", "Redis", "Elasticsearch",
+    "REST API", "GraphQL", "gRPC", "Microservices", "Event-Driven",
+    "Agile", "Scrum", "TDD", "Code Review", "System Design"
+  ],
+  "data_science": [
+    "Python", "R", "SQL", "Pandas", "NumPy", "Scikit-learn",
+    "TensorFlow", "PyTorch", "Machine Learning", "Deep Learning",
+    "NLP", "Computer Vision", "Statistical Analysis", "A/B Testing",
+    "Data Visualization", "Tableau", "Power BI", "Jupyter",
+    "Feature Engineering", "Model Deployment", "MLOps",
+    "Spark", "Hadoop", "Airflow", "dbt", "Snowflake", "BigQuery"
+  ],
+  "product_management": [
+    "Product Strategy", "Roadmap", "User Research", "A/B Testing",
+    "Agile", "Scrum", "Sprint Planning", "OKRs", "KPIs",
+    "Stakeholder Management", "Cross-functional", "Go-to-Market",
+    "PRD", "User Stories", "Competitive Analysis", "Market Research",
+    "Figma", "Jira", "Confluence", "Analytics", "Revenue Growth"
+  ],
+  "devops_sre": [
+    "Kubernetes", "Docker", "Terraform", "Ansible", "AWS", "GCP", "Azure",
+    "CI/CD", "Jenkins", "GitHub Actions", "ArgoCD",
+    "Monitoring", "Prometheus", "Grafana", "Datadog", "PagerDuty",
+    "Incident Response", "SLA", "SLO", "Uptime", "Reliability",
+    "Linux", "Bash", "Python", "Infrastructure as Code", "Helm"
+  ]
+}

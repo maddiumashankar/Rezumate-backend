@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # ── Ollama LLM Server ──
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rezumate-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    # GPU support (uncomment if NVIDIA GPU available)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Pull models on startup ──
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: rezumate-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama pull qwen2:1.5b
+        echo "✅ Model qwen2:1.5b ready"
+    environment:
+      - OLLAMA_HOST=ollama:11434
+
+  # ── Rezumate API ──
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rezumate-api
+    ports:
+      - "8000:8000"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+      - ./knowledge_base:/app/knowledge_base
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Streamlit Frontend ──
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rezumate-frontend
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    environment:
+      - API_URL=http://api:8000
+    command: streamlit run app/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+
+volumes:
+  ollama_data:

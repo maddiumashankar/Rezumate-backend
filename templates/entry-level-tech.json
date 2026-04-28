@@ -1,0 +1,74 @@
+{
+  "id": "tpl_entry_tech",
+  "name": "Entry Level - Technology",
+  "category": "entry_level",
+  "industry": "Technology",
+  "description": "Clean, modern template for fresh graduates and early-career tech professionals.",
+  "content": {
+    "personal": {
+      "fullName": "",
+      "email": "",
+      "phone": "",
+      "location": "",
+      "linkedIn": "",
+      "github": "",
+      "portfolio": "",
+      "title": "Software Developer"
+    },
+    "summary": "Motivated and detail-oriented software developer with a strong foundation in computer science fundamentals. Experienced in building web applications using modern technologies. Eager to contribute to innovative projects and grow as a developer.",
+    "experience": [
+      {
+        "id": "exp_1",
+        "company": "Company Name",
+        "title": "Software Development Intern",
+        "location": "City, State",
+        "startDate": "2024-06",
+        "endDate": "2024-12",
+        "isCurrent": false,
+        "bullets": [
+          "Developed and maintained web application features using React and Node.js, serving 1,000+ users",
+          "Collaborated with senior developers to implement RESTful APIs and database integrations",
+          "Participated in code reviews and adopted best practices for clean, maintainable code",
+          "Reduced page load time by 25% through optimization of front-end components"
+        ],
+        "technologies": ["React", "Node.js", "PostgreSQL", "Git"]
+      }
+    ],
+    "education": [
+      {
+        "id": "edu_1",
+        "institution": "University Name",
+        "degree": "Bachelor of Science",
+        "field": "Computer Science",
+        "startDate": "2020-08",
+        "endDate": "2024-05",
+        "gpa": "3.5",
+        "highlights": ["Dean's List", "Relevant Coursework: Data Structures, Algorithms, Web Development, Databases"]
+      }
+    ],
+    "skills": [
+      { "category": "Programming Languages", "skills": ["JavaScript", "TypeScript", "Python", "Java"] },
+      { "category": "Frameworks & Libraries", "skills": ["React", "Node.js", "Express", "Next.js"] },
+      { "category": "Databases", "skills": ["PostgreSQL", "MongoDB", "Redis"] },
+      { "category": "Tools & Platforms", "skills": ["Git", "Docker", "AWS", "Linux"] }
+    ],
+    "certifications": [],
+    "projects": [
+      {
+        "id": "proj_1",
+        "name": "Project Name",
+        "description": "A web application that solves a specific problem",
+        "technologies": ["React", "Node.js", "MongoDB"],
+        "url": "https://github.com/username/project",
+        "bullets": [
+          "Built a full-stack web application with user authentication and real-time features",
+          "Implemented CI/CD pipeline using GitHub Actions for automated testing and deployment"
+        ]
+      }
+    ],
+    "languages": [
+      { "language": "English", "proficiency": "native" }
+    ],
+    "customSections": []
+  }
+}

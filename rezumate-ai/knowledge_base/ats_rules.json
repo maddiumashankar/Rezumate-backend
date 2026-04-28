@@ -1,0 +1,51 @@
+{
+  "formatting": {
+    "font_safe_list": ["Arial", "Calibri", "Cambria", "Georgia", "Helvetica", "Times New Roman", "Verdana"],
+    "recommended_font_size": {"min": 10, "max": 12, "header": 14},
+    "margin_range_inches": {"min": 0.5, "max": 1.0},
+    "max_pages": 2,
+    "avoid": [
+      "Tables for layout (ATS cannot parse them)",
+      "Headers and footers (many ATS skip them)",
+      "Images, logos, or graphics",
+      "Text boxes or columns",
+      "Fancy bullet symbols (use standard bullets)",
+      "Non-standard section headers"
+    ]
+  },
+  "section_order_recommended": [
+    "Contact Information",
+    "Professional Summary",
+    "Skills",
+    "Work Experience",
+    "Education",
+    "Certifications",
+    "Projects"
+  ],
+  "keyword_rules": {
+    "match_exact_job_title": true,
+    "include_both_acronym_and_full": true,
+    "examples": {
+      "SEO": "Search Engine Optimization (SEO)",
+      "ML": "Machine Learning (ML)",
+      "CI/CD": "Continuous Integration/Continuous Deployment (CI/CD)"
+    },
+    "placement_priority": ["Skills section", "Experience bullets", "Summary"],
+    "avoid_keyword_stuffing": "Do not repeat the same keyword more than 3 times"
+  },
+  "bullet_point_rules": {
+    "start_with_action_verb": true,
+    "include_quantified_results": "Whenever possible — numbers, percentages, dollar amounts",
+    "format": "Action Verb + Task/Responsibility + Result/Impact",
+    "max_per_job": 6,
+    "min_per_job": 3,
+    "examples": {
+      "weak": "Responsible for managing the team",
+      "strong": "Led a cross-functional team of 8 engineers, delivering 3 product releases ahead of schedule"
+    }
+  },
+  "common_ats_systems": [
+    "Workday", "Greenhouse", "Lever", "Taleo", "iCIMS",
+    "BambooHR", "SmartRecruiters", "Jobvite", "Bullhorn", "SAP SuccessFactors"
+  ]
+}

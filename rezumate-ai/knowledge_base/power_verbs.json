@@ -1,0 +1,34 @@
+{
+  "leadership": [
+    "Spearheaded", "Directed", "Orchestrated", "Championed", "Pioneered",
+    "Mobilized", "Cultivated", "Mentored", "Supervised", "Steered"
+  ],
+  "achievement": [
+    "Achieved", "Surpassed", "Exceeded", "Delivered", "Attained",
+    "Outperformed", "Accomplished", "Secured", "Earned", "Won"
+  ],
+  "technical": [
+    "Architected", "Engineered", "Developed", "Implemented", "Automated",
+    "Optimized", "Debugged", "Deployed", "Integrated", "Configured"
+  ],
+  "analytical": [
+    "Analyzed", "Evaluated", "Assessed", "Investigated", "Diagnosed",
+    "Identified", "Quantified", "Measured", "Forecasted", "Modeled"
+  ],
+  "communication": [
+    "Presented", "Articulated", "Negotiated", "Facilitated", "Collaborated",
+    "Advocated", "Influenced", "Persuaded", "Briefed", "Liaised"
+  ],
+  "efficiency": [
+    "Streamlined", "Accelerated", "Reduced", "Consolidated", "Eliminated",
+    "Simplified", "Transformed", "Revamped", "Modernized", "Scaled"
+  ],
+  "growth": [
+    "Increased", "Expanded", "Grew", "Amplified", "Boosted",
+    "Generated", "Maximized", "Elevated", "Strengthened", "Doubled"
+  ],
+  "creation": [
+    "Designed", "Built", "Created", "Launched", "Established",
+    "Founded", "Initiated", "Introduced", "Formulated", "Devised"
+  ]
+}
