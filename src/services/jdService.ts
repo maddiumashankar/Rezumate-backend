@@ -1,5 +1,5 @@
 import { jdRepo } from "../database/repos/jdRepository";
-import { callClaude, parseJsonFromResponse } from "./llmService";
+import { callLLM, parseJsonFromResponse } from "./llmService";
 import type { JobDescription, JDKeywordAnalysis } from "../types";
 import logger from "../utils/logger";
 
@@ -47,7 +47,7 @@ Rules:
 - Extract the ACTUAL company name and job title from the posting
 - Return ONLY valid JSON`;
 
-    const response = await callClaude(
+    const response = await callLLM(
       `Analyze this job description:\n\n${jdText}`,
       systemPrompt,
       2048

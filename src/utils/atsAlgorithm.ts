@@ -1,17 +1,170 @@
 import type { ResumeContent, JDKeywordAnalysis, ATSScore, ATSBreakdown, ATSSuggestion } from "../types";
 
+// ─── Stemming & NLP Utilities ──────────────────────────────────────────────
+
+// Common word endings for basic stemming
+const SUFFIX_RULES: Array<[RegExp, string]> = [
+  [/ying$/i, "y"],
+  [/ies$/i, "y"],
+  [/ied$/i, "y"],
+  [/ement$/i, ""],
+  [/ment$/i, ""],
+  [/ness$/i, ""],
+  [/tion$/i, ""],
+  [/sion$/i, ""],
+  [/able$/i, ""],
+  [/ible$/i, ""],
+  [/ful$/i, ""],
+  [/less$/i, ""],
+  [/ing$/i, ""],
+  [/ings$/i, ""],
+  [/ed$/i, ""],
+  [/er$/i, ""],
+  [/ers$/i, ""],
+  [/est$/i, ""],
+  [/ly$/i, ""],
+  [/es$/i, ""],
+  [/s$/i, ""],
+];
+
+function stem(word: string): string {
+  const lower = word.toLowerCase();
+  if (lower.length <= 3) return lower;
+
+  for (const [pattern, replacement] of SUFFIX_RULES) {
+    if (pattern.test(lower)) {
+      const stemmed = lower.replace(pattern, replacement);
+      if (stemmed.length >= 3) return stemmed;
+    }
+  }
+  return lower;
+}
+
+// Common acronym/synonym expansions for tech & business terms
+const SYNONYMS: Record<string, string[]> = {
+  "ml": ["machine learning", "ml"],
+  "machine learning": ["ml", "machine learning"],
+  "ai": ["artificial intelligence", "ai"],
+  "artificial intelligence": ["ai", "artificial intelligence"],
+  "js": ["javascript", "js"],
+  "javascript": ["js", "javascript"],
+  "ts": ["typescript", "ts"],
+  "typescript": ["ts", "typescript"],
+  "k8s": ["kubernetes", "k8s"],
+  "kubernetes": ["k8s", "kubernetes"],
+  "ci/cd": ["continuous integration", "continuous delivery", "ci/cd", "cicd"],
+  "aws": ["amazon web services", "aws"],
+  "gcp": ["google cloud platform", "google cloud", "gcp"],
+  "react.js": ["react", "reactjs", "react.js"],
+  "react": ["react.js", "reactjs", "react"],
+  "node.js": ["node", "nodejs", "node.js"],
+  "node": ["node.js", "nodejs", "node"],
+  "vue.js": ["vue", "vuejs", "vue.js"],
+  "next.js": ["next", "nextjs", "next.js"],
+  "db": ["database", "db"],
+  "sql": ["sql", "structured query language"],
+  "nosql": ["nosql", "non-relational database", "no-sql"],
+  "api": ["api", "application programming interface"],
+  "rest": ["rest", "restful", "rest api"],
+  "ui": ["user interface", "ui"],
+  "ux": ["user experience", "ux"],
+  "pm": ["project manager", "product manager", "pm"],
+  "qa": ["quality assurance", "qa", "testing"],
+  "devops": ["devops", "dev ops", "developer operations"],
+  "oop": ["object oriented programming", "oop", "object-oriented"],
+  "tdd": ["test driven development", "tdd"],
+  "agile": ["agile", "scrum", "kanban"],
+  "c#": ["csharp", "c#", "c sharp"],
+  "c++": ["cpp", "c++", "c plus plus"],
+  ".net": ["dotnet", ".net", "dot net"],
+};
+
+/**
+ * Tokenize text into individual words/terms, preserving multi-word tech terms.
+ */
+function tokenize(text: string): string[] {
+  // First, extract known multi-word terms (e.g., "machine learning", "node.js")
+  const lowerText = text.toLowerCase();
+  const tokens = new Set<string>();
+
+  // Extract words
+  const wordRegex = /[a-z0-9#+./-]+/gi;
+  let match;
+  while ((match = wordRegex.exec(lowerText)) !== null) {
+    const word = match[0];
+    if (word.length >= 2) {
+      tokens.add(word);
+    }
+  }
+
+  return Array.from(tokens);
+}
+
+/**
+ * Check if a keyword matches within text using word-boundary matching.
+ * Handles multi-word phrases and prevents "Java" matching "JavaScript".
+ */
+function keywordMatches(resumeTokens: Set<string>, resumeStemmedTokens: Set<string>, resumeFullText: string, keyword: string): boolean {
+  const kwLower = keyword.toLowerCase().trim();
+
+  // 1. Exact token match (word boundary safe)
+  if (resumeTokens.has(kwLower)) return true;
+
+  // 2. Multi-word keyword: check if phrase exists with word boundaries
+  if (kwLower.includes(" ")) {
+    const regex = new RegExp(`\\b${escapeRegex(kwLower)}\\b`, "i");
+    if (regex.test(resumeFullText)) return true;
+  }
+
+  // 3. Stemmed match (e.g., "developing" matches "development")
+  const kwStemmed = stem(kwLower);
+  if (resumeStemmedTokens.has(kwStemmed)) return true;
+
+  // 4. Synonym/acronym match
+  const synonyms = SYNONYMS[kwLower];
+  if (synonyms) {
+    for (const syn of synonyms) {
+      if (resumeTokens.has(syn)) return true;
+      const synRegex = new RegExp(`\\b${escapeRegex(syn)}\\b`, "i");
+      if (synRegex.test(resumeFullText)) return true;
+    }
+  }
+
+  // 5. Single token word-boundary match (prevents "Go" matching "Google", "Java" matching "JavaScript")
+  if (!kwLower.includes(" ") && kwLower.length >= 2) {
+    const regex = new RegExp(`\\b${escapeRegex(kwLower)}\\b`, "i");
+    if (regex.test(resumeFullText)) return true;
+  }
+
+  return false;
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// ─── Main ATS Scoring ──────────────────────────────────────────────────────
+
 /**
  * Calculate ATS compatibility score between a resume and job description keywords.
- * Hybrid approach: algorithmic keyword matching + heuristic section analysis.
+ * Uses tokenized matching with stemming, synonym expansion, and word-boundary safety.
  */
 export function calculateATSScore(resume: ResumeContent, jdAnalysis: JDKeywordAnalysis): ATSScore {
-  const resumeText = extractAllText(resume).toLowerCase();
-  const resumeSkills = extractAllSkills(resume).map((s) => s.toLowerCase());
+  const resumeFullText = extractAllText(resume).toLowerCase();
+  const resumeTokens = new Set(tokenize(resumeFullText));
+  const resumeStemmedTokens = new Set(Array.from(resumeTokens).map(stem));
+  const resumeSkillTokens = new Set(extractAllSkills(resume).map((s) => s.toLowerCase()));
+
+  // Merge resume tokens with skill tokens
+  for (const s of resumeSkillTokens) {
+    resumeTokens.add(s);
+    resumeStemmedTokens.add(stem(s));
+  }
 
   // 1. Keyword Match (40% weight)
-  const { matched: matchedRequired, missing: missingRequired } = matchKeywords(resumeText, resumeSkills, jdAnalysis.requiredSkills);
-  const { matched: matchedPreferred } = matchKeywords(resumeText, resumeSkills, jdAnalysis.preferredSkills);
-  const { matched: matchedGeneral } = matchKeywords(resumeText, resumeSkills, jdAnalysis.keywords);
+  const { matched: matchedRequired, missing: missingRequired } = matchKeywords(resumeTokens, resumeStemmedTokens, resumeFullText, jdAnalysis.requiredSkills);
+  const { matched: matchedPreferred } = matchKeywords(resumeTokens, resumeStemmedTokens, resumeFullText, jdAnalysis.preferredSkills);
+  const { matched: matchedGeneral } = matchKeywords(resumeTokens, resumeStemmedTokens, resumeFullText, jdAnalysis.keywords);
 
   const requiredScore = jdAnalysis.requiredSkills.length > 0
     ? (matchedRequired.length / jdAnalysis.requiredSkills.length) * 100 : 100;
@@ -72,13 +225,17 @@ export function calculateATSScore(resume: ResumeContent, jdAnalysis: JDKeywordAn
   };
 }
 
-function matchKeywords(resumeText: string, resumeSkills: string[], keywords: string[]): { matched: string[]; missing: string[] } {
+function matchKeywords(
+  resumeTokens: Set<string>,
+  resumeStemmedTokens: Set<string>,
+  resumeFullText: string,
+  keywords: string[]
+): { matched: string[]; missing: string[] } {
   const matched: string[] = [];
   const missing: string[] = [];
 
   for (const kw of keywords) {
-    const kwLower = kw.toLowerCase();
-    if (resumeText.includes(kwLower) || resumeSkills.some((s) => s.includes(kwLower) || kwLower.includes(s))) {
+    if (keywordMatches(resumeTokens, resumeStemmedTokens, resumeFullText, kw)) {
       matched.push(kw);
     } else {
       missing.push(kw);
@@ -136,7 +293,9 @@ function calculateExperienceRelevance(resume: ResumeContent, jd: JDKeywordAnalys
 
   let matchCount = 0;
   for (const kw of jdKeywords) {
-    if (allBullets.includes(kw) || allTech.includes(kw)) matchCount++;
+    // Use word-boundary matching for experience relevance too
+    const regex = new RegExp(`\\b${escapeRegex(kw)}\\b`, "i");
+    if (regex.test(allBullets) || allTech.some((t) => t === kw || t.includes(kw))) matchCount++;
   }
 
   const matchRate = jdKeywords.length > 0 ? matchCount / jdKeywords.length : 0;
@@ -202,8 +361,9 @@ function calculateBulletQuality(resume: ResumeContent): number {
 
   for (const b of bullets) {
     let bulletScore = 0;
+    const bLower = b.toLowerCase();
     // Starts with action verb
-    if (actionVerbs.some((v) => b.toLowerCase().startsWith(v))) bulletScore += 30;
+    if (actionVerbs.some((v) => bLower.startsWith(v))) bulletScore += 30;
     // Contains numbers/metrics
     if (/\d+%?/.test(b)) bulletScore += 30;
     // Reasonable length (50-200 chars)

@@ -1,4 +1,4 @@
-import { callClaude } from "../services/llmService";
+import { callLLM } from "../services/llmService";
 import type { ResumeContent, JDKeywordAnalysis } from "../types";
 import logger from "../utils/logger";
 
@@ -44,7 +44,7 @@ ${jdText.substring(0, 2000)}
 
 Generate ONLY the cover letter text — no labels, no "Dear Hiring Manager:" header (I'll add that).`;
 
-  const response = await callClaude(prompt, systemPrompt, 1500);
+  const response = await callLLM(prompt, systemPrompt, 1500);
   logger.info("Cover letter generated");
   return response.text;
 }

@@ -164,24 +164,16 @@ async function handleJDInput(ctx: Context, userId: string, session: any, text: s
 async function handleNewContentInput(ctx: Context, userId: string, session: any, text: string): Promise<void> {
   await ctx.reply("📝 Incorporating your new content...");
 
-  // TODO: In V2, parse new content and add to resume
-  // For now, store it in state data for the agent to process
+  // Store new content in state data for the finalization step
   await conversationMachine.updateStateData(session.id, {
     newContent: text,
   });
 
-  await ctx.reply("Got it! I'll include this in your tailored resume. Finalizing now...");
+  await ctx.reply("Got it! I'll include this in your tailored resume. Proceeding to finalization...");
 
-  // Import handler dynamically to avoid circular deps
-  const { handleCallback } = require("./callbackHandler");
-  // Simulate skip_new_content to proceed to finalization
-  const fakeCtx = {
-    ...ctx,
-    callbackQuery: { data: "skip_new_content" },
-    answerCbQuery: async () => {},
-    editMessageText: ctx.reply.bind(ctx),
-  };
-  await handleCallback(fakeCtx);
+  // Transition directly to FINAL_REVIEW instead of simulating a callback
+  await conversationMachine.transition(session.id, "NEW_CONTENT", "FINAL_REVIEW", session.stateData);
+  await ctx.reply("Your resume has been updated. Would you like to export it?", mainMenu());
 }
 
 async function handleEditInput(ctx: Context, userId: string, session: any, text: string): Promise<void> {

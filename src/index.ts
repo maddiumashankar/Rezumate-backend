@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import { createBot } from "./bot";
-import { initializeDatabase } from "./database/db";
+import { initializeDatabase, shutdownDb } from "./database/db";
 import logger from "./utils/logger";
 
 async function main(): Promise<void> {
@@ -28,6 +28,7 @@ async function main(): Promise<void> {
   const shutdown = (signal: string) => {
     logger.info(`${signal} received. Shutting down...`);
     bot.stop(signal);
+    shutdownDb(); // Flush pending database writes
     process.exit(0);
   };
   process.once("SIGINT", () => shutdown("SIGINT"));
@@ -41,5 +42,6 @@ async function main(): Promise<void> {
 
 main().catch((err) => {
   logger.error(`Fatal error: ${err.message}\n${err.stack}`);
+  shutdownDb();
   process.exit(1);
 });

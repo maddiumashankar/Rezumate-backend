@@ -1,4 +1,4 @@
-import { callClaude, parseJsonFromResponse } from "../services/llmService";
+import { callLLM, parseJsonFromResponse } from "../services/llmService";
 import type { ResumeContent, JDKeywordAnalysis } from "../types";
 import logger from "../utils/logger";
 
@@ -74,7 +74,7 @@ async function getSkillRecommendations(
   if (missingRequired.length === 0 && missingPreferred.length === 0) return [];
 
   try {
-    const response = await callClaude(
+    const response = await callLLM(
       `For these missing skills for a ${jdAnalysis.experienceLevel} ${jdAnalysis.industry} role, provide learning recommendations.
 
 CRITICAL (Required): ${missingRequired.join(", ") || "None"}

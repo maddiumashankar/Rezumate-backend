@@ -5,6 +5,49 @@ import logger from "../utils/logger";
 
 let db: SqlJsDatabase | null = null;
 
+// ─── Debounced Write System ────────────────────────────────────────────────
+// Instead of writing to disk on every single query, we batch writes
+// with a debounce timer and periodic auto-saves.
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let isDirty = false;
+const SAVE_DEBOUNCE_MS = 2000; // Wait 2s after last write before flushing to disk
+const AUTO_SAVE_INTERVAL_MS = 30_000; // Auto-save every 30s regardless
+let autoSaveInterval: ReturnType<typeof setInterval> | null = null;
+
+function scheduleSave(): void {
+  isDirty = true;
+
+  // Clear any existing debounce timer
+  if (saveTimer) clearTimeout(saveTimer);
+
+  // Schedule a new save
+  saveTimer = setTimeout(() => {
+    flushToDisk();
+  }, SAVE_DEBOUNCE_MS);
+}
+
+function flushToDisk(): void {
+  if (!db || !isDirty) return;
+  try {
+    const dbPath = process.env.DATABASE_PATH || "./data/rezumate.db";
+    const data = db.export();
+    const buffer = Buffer.from(data);
+
+    // Write to temp file first, then rename (atomic write)
+    const tmpPath = dbPath + ".tmp";
+    fs.writeFileSync(tmpPath, buffer);
+    fs.renameSync(tmpPath, dbPath);
+
+    isDirty = false;
+    logger.debug("Database flushed to disk");
+  } catch (err: any) {
+    logger.error(`Failed to flush database: ${err.message}`);
+  }
+}
+
+// ─── Database Initialization ───────────────────────────────────────────────
+
 export async function getDb(): Promise<SqlJsDatabase> {
   if (!db) {
     await initializeDatabase();
@@ -137,17 +180,43 @@ export async function initializeDatabase(): Promise<void> {
   db.run("CREATE INDEX IF NOT EXISTS idx_jd_user ON job_descriptions(user_id)");
   db.run("CREATE INDEX IF NOT EXISTS idx_conv_user_active ON conversation_sessions(user_id, is_active)");
 
-  saveDb();
+  // Initial save after creating tables
+  flushToDisk();
+  isDirty = false;
+
+  // Start auto-save interval
+  if (autoSaveInterval) clearInterval(autoSaveInterval);
+  autoSaveInterval = setInterval(() => {
+    flushToDisk();
+  }, AUTO_SAVE_INTERVAL_MS);
+
   logger.info("Database initialized successfully");
 }
 
-export function saveDb(): void {
-  if (!db) return;
-  const dbPath = process.env.DATABASE_PATH || "./data/rezumate.db";
-  const data = db.export();
-  const buffer = Buffer.from(data);
-  fs.writeFileSync(dbPath, buffer);
+/**
+ * Manually trigger a save. Uses debouncing by default.
+ * Pass `immediate: true` to force an immediate flush.
+ */
+export function saveDb(immediate: boolean = false): void {
+  if (immediate) {
+    flushToDisk();
+  } else {
+    scheduleSave();
+  }
 }
+
+/**
+ * Graceful shutdown — flush any pending writes.
+ * Call this on process exit.
+ */
+export function shutdownDb(): void {
+  if (saveTimer) clearTimeout(saveTimer);
+  if (autoSaveInterval) clearInterval(autoSaveInterval);
+  flushToDisk();
+  logger.info("Database shutdown complete");
+}
+
+// ─── Query Helpers ─────────────────────────────────────────────────────────
 
 /** Run a query and return all rows as objects */
 export async function queryAll(sql: string, params: any[] = []): Promise<any[]> {
@@ -173,5 +242,25 @@ export async function queryOne(sql: string, params: any[] = []): Promise<any | n
 export async function execute(sql: string, params: any[] = []): Promise<void> {
   const database = await getDb();
   database.run(sql, params);
-  saveDb();
+  scheduleSave(); // Debounced write instead of immediate flush
+}
+
+/**
+ * Run multiple statements in a transaction.
+ * All succeed or all fail.
+ */
+export async function transaction(operations: Array<{ sql: string; params: any[] }>): Promise<void> {
+  const database = await getDb();
+
+  database.run("BEGIN TRANSACTION");
+  try {
+    for (const op of operations) {
+      database.run(op.sql, op.params);
+    }
+    database.run("COMMIT");
+    scheduleSave();
+  } catch (err) {
+    database.run("ROLLBACK");
+    throw err;
+  }
 }
