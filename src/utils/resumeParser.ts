@@ -1,12 +1,14 @@
 import fs from "fs";
 import path from "path";
+import pdfParse from "pdf-parse";
+import mammoth from "mammoth";
 import logger from "./logger";
 import type { ResumeContent } from "../types";
 import { createEmptyResumeContent } from "../types";
-import { callClaude, parseJsonFromResponse } from "../services/llmService";
+import { callLLM, parseJsonFromResponse } from "../services/llmService";
 
 /**
- * Parse a resume file (PDF or DOCX) into structured ResumeContent using Claude.
+ * Parse a resume file (PDF or DOCX) into structured ResumeContent.
  */
 export async function parseResumeFile(filePath: string): Promise<ResumeContent> {
   const ext = path.extname(filePath).toLowerCase();
@@ -30,7 +32,7 @@ export async function parseResumeFile(filePath: string): Promise<ResumeContent> 
 }
 
 /**
- * Parse raw resume text into structured ResumeContent using Claude.
+ * Parse raw resume text into structured ResumeContent using the LLM.
  */
 export async function parseResumeText(text: string): Promise<ResumeContent> {
   const systemPrompt = `You are an expert resume parser. Extract structured data from the resume text.
@@ -78,7 +80,7 @@ Rules:
 - Generate unique ids for experience (exp_1, exp_2) and education (edu_1, edu_2)
 - Return ONLY valid JSON, no explanations`;
 
-  const response = await callClaude(
+  const response = await callLLM(
     `Parse this resume and return structured JSON:\n\n${text}`,
     systemPrompt,
     4096
@@ -86,7 +88,7 @@ Rules:
 
   const parsed = parseJsonFromResponse<ResumeContent>(response.text);
   if (!parsed) {
-    logger.error("Failed to parse resume from Claude response");
+    logger.error("Failed to parse resume from LLM response");
     throw new Error("Failed to parse resume. Please try uploading again.");
   }
 
@@ -97,7 +99,6 @@ Rules:
 
 async function extractTextFromPDF(filePath: string): Promise<string> {
   try {
-    const pdfParse = require("pdf-parse");
     const buffer = fs.readFileSync(filePath);
     const data = await pdfParse(buffer);
     return data.text;
@@ -109,7 +110,6 @@ async function extractTextFromPDF(filePath: string): Promise<string> {
 
 async function extractTextFromDOCX(filePath: string): Promise<string> {
   try {
-    const mammoth = require("mammoth");
     const result = await mammoth.extractRawText({ path: filePath });
     return result.value;
   } catch (err: any) {

@@ -1,89 +1,82 @@
-# 🎯 Rezumate — AI-Powered Resume Optimization Agent
+# 🎯 Rezumate — AI-Powered Resume Optimization Platform
 
-> **Zero-cost, agentic AI that tailors your resume to any job description — delivered via Telegram.**
+> **Zero-cost, agentic AI that tailors your resume to any job description — delivered via Web Dashboard & Telegram.**
 
-Rezumate is a dual-layer system: a **Node.js Telegram bot** that handles user interaction and a **Python AI backend** powered by LangGraph, MCP tool servers, and lightweight local LLMs. It parses resumes, scores them against job descriptions, rewrites weak content, and generates polished LaTeX PDFs — all without paid APIs.
+Rezumate is a comprehensive, full-stack AI resume agent platform. It features a **Next.js 16 Web Dashboard** for interactive tailoring, a **Node.js/Express REST API and Telegram Bot** for seamless communication, and a **Python AI backend** powered by LangGraph, MCP tool servers, and lightweight local LLMs. It parses resumes, scores them against job descriptions, rewrites weak content, and generates polished LaTeX PDFs — all without relying on expensive paid APIs.
 
 ---
 
 ## 🏗️ Architecture Overview
 
-```
-┌───────────────────────────────────────────────────────────────────────┐
-│                         USER (Telegram)                              │
-└──────────────────────────────┬────────────────────────────────────────┘
-                               │
+```text
+┌────────────────────────────────────────────────────────────────────────┐
+│                          USER INTERFACES                               │
+│  ┌──────────────────────┐              ┌────────────────────────────┐  │
+│  │ Telegram Bot (Mobile)│              │ Next.js Web Dashboard (PC) │  │
+│  └──────────┬───────────┘              └──────────────┬─────────────┘  │
+└─────────────┼─────────────────────────────────────────┼────────────────┘
+              │                                         │
+              ▼                                         ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                   Node.js / TypeScript Layer                           │
+│  ┌──────────┐  ┌────────────┐  ┌───────────┐  ┌────────────────────┐   │
+│  │ Telegraf │  │   State    │  │  SQLite   │  │ Express REST API   │   │
+│  │   Bot    │──│  Machine   │──│   (DB)    │──│ (Frontend Gateway) │   │
+│  └──────────┘  └────────────┘  └───────────┘  └────────────────────┘   │
+└──────────────────────────────┬─────────────────────────────────────────┘
+                               │ HTTP / API Calls
                                ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                   Node.js / TypeScript Layer                         │
-│  ┌──────────┐  ┌────────────┐  ┌───────────┐  ┌──────────────────┐  │
-│  │ Telegraf  │  │   State    │  │  SQLite   │  │   Services       │  │
-│  │   Bot     │──│  Machine   │──│   (sql.js)│  │ (PDF, LLM, JD)  │  │
-│  └──────────┘  └────────────┘  └───────────┘  └──────────────────┘  │
-└──────────────────────────────┬───────────────────────────────────────┘
-                               │ HTTP
-                               ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                   Python / AI Layer (rezumate-ai)                    │
-│  ┌──────────────────────────────────────────────────────────────┐    │
-│  │               LangGraph Agentic Pipeline                     │    │
-│  │                                                              │    │
-│  │  Parse ──▶ ATS Score ──▶ Match ──▶ Rewrite ──▶ LaTeX ──▶ QA │    │
-│  │                                     (LLM)         │         │    │
-│  │                                       ▲           │         │    │
-│  │                                       └───────────┘         │    │
-│  │                                      (loop if score < 70)   │    │
-│  └──────────────────────────────────────────────────────────────┘    │
-│                                                                      │
-│  ┌──────────────┐ ┌──────────────┐ ┌───────────────┐ ┌────────────┐ │
-│  │ MCP: Parser  │ │ MCP: Scorer  │ │ MCP: Matcher  │ │MCP: LaTeX  │ │
-│  │  (PyMuPDF)   │ │  (TF-IDF)   │ │(Sentence-BERT)│ │ (Builder)  │ │
-│  └──────────────┘ └──────────────┘ └───────────────┘ └────────────┘ │
-│                                                                      │
-│  ┌──────────────────────────────────────────────────────────────┐    │
-│  │           Ollama (Local LLM: qwen2:1.5b)                     │    │
-│  │           Only used for bullet rewriting & summary gen       │    │
-│  └──────────────────────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                   Python / AI Layer (rezumate-ai)                      │
+│  ┌──────────────────────────────────────────────────────────────┐      │
+│  │               LangGraph Agentic Pipeline                     │      │
+│  │                                                              │      │
+│  │  Parse ──▶ ATS Score ──▶ Match ──▶ Rewrite ──▶ LaTeX ──▶ QA │      │
+│  │                                     (LLM)         │         │      │
+│  │                                       ▲           │         │      │
+│  │                                       └───────────┘         │      │
+│  │                                      (loop if score < 70)   │      │
+│  └──────────────────────────────────────────────────────────────┘      │
+│                                                                        │
+│  ┌──────────────┐ ┌──────────────┐ ┌───────────────┐ ┌────────────┐    │
+│  │ MCP: Parser  │ │ MCP: Scorer  │ │ MCP: Matcher  │ │MCP: LaTeX  │    │
+│  │  (PyMuPDF)   │ │  (TF-IDF)    │ │(Sentence-BERT)│ │ (Builder)  │    │
+│  └──────────────┘ └──────────────┘ └───────────────┘ └────────────┘    │
+│                                                                        │
+│  ┌──────────────────────────────────────────────────────────────┐      │
+│  │           Ollama (Local LLM: qwen2:1.5b)                     │      │
+│  │           Only used for bullet rewriting & summary gen       │      │
+│  └──────────────────────────────────────────────────────────────┘      │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 📂 Project Structure
 
-```
+```text
 Rezumate/
-├── src/                          # Node.js / TypeScript — Telegram Bot
-│   ├── index.ts                  # App entry point
-│   ├── bot/
-│   │   ├── index.ts              # Telegraf bot setup & middleware
-│   │   ├── commands/             # /start, /help, /resume, /cancel
-│   │   └── handlers/             # Message, callback, document handlers
-│   ├── state-machine/
-│   │   ├── machine.ts            # Conversation state transitions
-│   │   └── states.ts             # State definitions & prompts
-│   ├── database/
-│   │   ├── db.ts                 # SQLite (sql.js) initialization
-│   │   └── repos/                # User, resume, JD, conversation repos
-│   ├── services/
-│   │   ├── llmService.ts         # Groq API integration
-│   │   ├── pdfService.ts         # PDF generation (PDFKit)
-│   │   ├── resumeService.ts      # Resume processing logic
-│   │   └── jdService.ts          # Job description parsing
-│   ├── agents/
-│   │   ├── atsScorer.ts          # ATS scoring algorithms
-│   │   ├── resumeTailorAgent.ts  # Resume tailoring logic
-│   │   ├── skillsAnalyzer.ts     # Skills gap analysis
-│   │   └── coverLetterAgent.ts   # Cover letter generation
-│   ├── types/                    # TypeScript interfaces
-│   └── utils/                    # Logger, parsers, formatters, validators
+├── web/                          # Frontend — Next.js Web Application
+│   ├── src/app/                  # App Router pages (Dashboard, Tailor, Jobs)
+│   ├── public/                   # Static assets
+│   ├── package.json              # Web dependencies
+│   └── next.config.ts            
+│
+├── src/                          # Node.js / TypeScript — API & Telegram Bot
+│   ├── index.ts                  # Main entry point
+│   ├── api/                      # Express REST API (routes & server)
+│   ├── bot/                      # Telegraf bot setup, commands & handlers
+│   ├── state-machine/            # Conversation state transitions
+│   ├── database/                 # SQLite/Drizzle database configuration
+│   ├── services/                 # Orchestration services (LLM, PDF, JD)
+│   ├── agents/                   # Agent logic for resume tailoring & skills
+│   └── utils/                    # Helpers, formatting, and validation
 │
 ├── rezumate-ai/                  # Python — AI Agentic Backend
 │   ├── agents/
-│   │   └── graph.py              # LangGraph workflow (the brain)
+│   │   └── graph.py              # LangGraph workflow (the core AI brain)
 │   ├── app/
-│   │   ├── main.py               # FastAPI REST API
-│   │   └── streamlit_app.py      # Streamlit web frontend
+│   │   └── main.py               # FastAPI microservice interface
 │   ├── mcp_servers/              # Model Context Protocol tool servers
 │   │   ├── resume_parser/        # PDF/DOCX → structured data (PyMuPDF)
 │   │   ├── ats_scorer/           # ATS scoring (TF-IDF, rule-based)
@@ -92,20 +85,12 @@ Rezumate/
 │   ├── knowledge_base/           # ATS rules, power verbs, industry keywords
 │   ├── config/
 │   │   └── mcp_config.json       # MCP server & LLM configuration
-│   ├── Dockerfile
-│   ├── docker-compose.yml        # Full stack: Ollama + API + Streamlit
-│   └── pyproject.toml
+│   └── docker-compose.yml        # Full stack containerization
 │
-├── templates/                    # Resume template definitions
-│   ├── entry-level-tech.json
-│   ├── mid-level-tech.json
-│   └── senior-management.json
-│
+├── templates/                    # LaTeX Resume template definitions
 ├── .env.example                  # Environment variable template
-├── .gitignore
-├── package.json
-├── tsconfig.json
-└── drizzle.config.ts
+├── package.json                  # Backend dependencies
+└── tsconfig.json
 ```
 
 ---
@@ -114,7 +99,7 @@ Rezumate/
 
 ### The LangGraph Pipeline (`rezumate-ai/agents/graph.py`)
 
-The AI pipeline is a **self-correcting loop** with 6 nodes. Only **one node uses an LLM** — everything else is deterministic MCP tools:
+The AI pipeline runs a **self-correcting loop** orchestrated by LangGraph. To optimize costs and speed, **only one node uses an LLM** — the rest utilize deterministic MCP (Model Context Protocol) tools:
 
 | Node | Tool | LLM? | What It Does |
 |------|------|------|-------------|
@@ -125,47 +110,42 @@ The AI pipeline is a **self-correcting loop** with 6 nodes. Only **one node uses
 | **5. Build LaTeX** | MCP `latex-builder` | ❌ | Merges rewritten content into LaTeX → compiles to PDF |
 | **6. Quality Check** | MCP `ats-scorer` | ❌ | Re-scores; if score < 70, loops back to step 4 (max 2 iterations) |
 
-### Telegram Bot Conversation Flow
+### Dual Interfaces
 
-The bot uses a **finite state machine** to guide users through a structured conversation:
-
-```
-IDLE → RESUME_UPLOAD → RESUME_REVIEW → JD_UPLOAD → ATS_ANALYSIS
-  │                                                      │
-  │         CHANGE_APPROVAL ← ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
-  │              │
-  │         NEW_CONTENT → FINAL_REVIEW → IDLE
-  │
-  ├── TEMPLATE_SELECT → RESUME_BUILD → RESUME_REVIEW
-  ├── SKILLS_GAP → INTERVIEW_PREP
-  └── COVER_LETTER
-```
+Users can interact with Rezumate through two distinct interfaces:
+1. **Interactive Web Dashboard:** Built with Next.js 16, allowing users to visually upload resumes, paste job descriptions, and see live ATS scoring, skills gap analysis, and tailored PDF previews.
+2. **Telegram Bot:** A conversational UI using a finite state machine that guides users step-by-step from resume upload to final ATS-optimized PDF output directly on their phone.
 
 ---
 
 ## 🔧 Tech Stack
 
-### Node.js Layer (Telegram Bot)
+### Web Frontend Layer
 | Component | Technology |
 |-----------|-----------|
+| Framework | Next.js 16 |
+| Library | React 19 |
+| Language | TypeScript |
+| Styling | CSS Modules / Custom UI |
+
+### Node.js API & Bot Layer
+| Component | Technology |
+|-----------|-----------|
+| API Framework | Express.js |
 | Bot Framework | Telegraf 4.x |
 | Language | TypeScript 5.x |
-| Database | SQLite via sql.js |
+| Database | SQLite (sql.js / Drizzle) |
 | PDF Generation | PDFKit |
-| LLM (cloud) | Groq API (Llama 3.3 70B) |
-| Logging | Winston |
 
-### Python Layer (AI Backend)
+### Python AI Layer
 | Component | Technology |
 |-----------|-----------|
 | Orchestration | LangGraph + LangChain |
 | API Framework | FastAPI + Uvicorn |
-| Frontend | Streamlit |
 | LLM (local) | Ollama → Qwen2 1.5B / Phi-3 Mini |
 | Embeddings | sentence-transformers (local) |
-| PDF Parsing | PyMuPDF |
-| PDF Output | LaTeX |
 | Tool Protocol | MCP (Model Context Protocol) |
+| Output | LaTeX Compilation |
 
 ---
 
@@ -184,10 +164,15 @@ IDLE → RESUME_UPLOAD → RESUME_REVIEW → JD_UPLOAD → ATS_ANALYSIS
 git clone https://github.com/maddiumashankar/Rezumate-backend.git
 cd Rezumate-backend
 
-# Node.js dependencies
+# 1. Install Backend/API dependencies
 npm install
 
-# Python dependencies
+# 2. Install Web Frontend dependencies
+cd web
+npm install
+cd ..
+
+# 3. Install Python AI dependencies
 cd rezumate-ai
 pip install -e ".[dev]"
 cd ..
@@ -208,70 +193,32 @@ cp .env.example .env
 ollama pull qwen2:1.5b
 ```
 
-### 4. Run
+### 4. Run the Platform
+
+You'll need to start multiple layers for the full experience:
 
 ```bash
-# Option A: Run the Telegram bot (Node.js)
+# Terminal 1: Run the Node.js API & Telegram Bot
 npm run dev
 
-# Option B: Run the AI API (Python)
+# Terminal 2: Run the Next.js Web Dashboard
+npm run dev:web
+
+# Terminal 3: Run the Python AI Backend
 cd rezumate-ai
 uvicorn app.main:app --reload --port 8000
-
-# Option C: Run everything with Docker
-cd rezumate-ai
-docker compose up
 ```
 
----
-
-## 📡 API Endpoints (Python Backend)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/optimize` | Upload resume + JD → Full pipeline → Optimized PDF |
-| `POST` | `/parse` | Upload resume → Parsed structured data |
-| `POST` | `/score` | Score resume against a JD (no rewriting) |
-| `GET` | `/templates` | List available LaTeX templates |
-| `GET` | `/download/{job_id}` | Download a generated PDF |
-| `GET` | `/health` | Health check (Ollama connectivity) |
-
----
-
-## 🤖 Telegram Bot Commands
-
-| Command | Description |
-|---------|-------------|
-| `/start` | Begin onboarding flow |
-| `/resume` | Start resume upload & tailoring |
-| `/help` | Show available commands |
-| `/cancel` | Reset conversation to IDLE |
-
----
-
-## 🐳 Docker Deployment
-
-The `rezumate-ai/docker-compose.yml` spins up the full stack:
-
-| Service | Port | Description |
-|---------|------|-------------|
-| `ollama` | 11434 | Local LLM server |
-| `api` | 8000 | FastAPI backend |
-| `frontend` | 8501 | Streamlit web UI |
-
-```bash
-cd rezumate-ai
-docker compose up -d
-```
+*(Alternatively, use Docker for the AI backend via `docker compose up` inside `rezumate-ai`)*
 
 ---
 
 ## 💡 Design Principles
 
-- **Zero API Cost**: All AI runs locally via Ollama. Groq is optional for the Telegram bot layer.
-- **LLM-Minimal**: The LLM is only used for bullet rewriting and summary generation. Parsing, scoring, matching, and PDF building are all rule-based MCP tools.
-- **Self-Correcting**: The pipeline loops up to 2× if ATS score stays below 70.
-- **Modular MCP Servers**: Each capability is an independent MCP server — easy to test, replace, or scale individually.
+- **Zero API Cost**: Core tailoring runs locally via Ollama.
+- **LLM-Minimal Workflow**: The LLM is strictly isolated to bullet rewriting and summary generation. Heavy lifting like parsing, ATS scoring, and PDF generation are handled by fast, deterministic MCP tools.
+- **Self-Correcting**: The AI pipeline loops up to 2× automatically if the ATS score remains below an acceptable threshold (70).
+- **Headless AI Backend**: LangGraph is exposed as a microservice, allowing both the Next.js web app and the Telegram bot to securely consume the AI logic.
 
 ---
 

@@ -105,6 +105,11 @@ def _template_modern(name, email, phone, linkedin, summary, skills, experience, 
     contact_parts = [p for p in [email, phone, linkedin] if p]
     contact_line = " \\quad $|$ \\quad ".join(contact_parts)
 
+    sec_summary = "\\section*{Professional Summary}" if summary else ""
+    sec_skills = "\\section*{Skills}" if skills_text else ""
+    sec_exp = "\\section*{Experience}" if exp_entries else ""
+    sec_edu = "\\section*{Education}" if edu_entries else ""
+
     return f"""\\documentclass[11pt, a4paper]{{article}}
 
 % ── Packages ──
@@ -130,19 +135,19 @@ def _template_modern(name, email, phone, linkedin, summary, skills, experience, 
 \\end{{center}}
 
 % ── Summary ──
-{"\\section*{Professional Summary}" if summary else ""}
+{sec_summary}
 {summary}
 
 % ── Skills ──
-{"\\section*{Skills}" if skills_text else ""}
+{sec_skills}
 {skills_text}
 
 % ── Experience ──
-{"\\section*{Experience}" if exp_entries else ""}
+{sec_exp}
 {exp_text}
 
 % ── Education ──
-{"\\section*{Education}" if edu_entries else ""}
+{sec_edu}
 {edu_text}
 
 \\end{{document}}

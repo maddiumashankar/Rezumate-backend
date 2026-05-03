@@ -370,6 +370,8 @@ def run_rezumate(resume_path: str, job_description: str, template: str = "modern
         "skill_matches": result.get("skill_matches", {}),
         "iterations": result.get("iteration", 0),
         "messages": result.get("messages", []),
+        "rewritten_bullets": result.get("rewritten_bullets", []),
+        "rewritten_summary": result.get("rewritten_summary", ""),
     }
 
 

@@ -1,5 +1,5 @@
 import { calculateATSScore } from "../utils/atsAlgorithm";
-import { callClaude, parseJsonFromResponse } from "../services/llmService";
+import { callLLM, parseJsonFromResponse } from "../services/llmService";
 import type { ResumeContent, JDKeywordAnalysis, ATSScore } from "../types";
 import logger from "../utils/logger";
 
@@ -39,7 +39,7 @@ async function getAISuggestions(
   jdAnalysis: JDKeywordAnalysis,
   currentScore: ATSScore
 ): Promise<ATSScore["suggestions"] | null> {
-  const response = await callClaude(
+  const response = await callLLM(
     `Given this resume ATS analysis, provide 3-5 specific, actionable suggestions.
 
 Current Score: ${currentScore.overallScore}/100
