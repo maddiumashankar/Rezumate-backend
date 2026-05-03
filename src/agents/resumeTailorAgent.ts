@@ -1,4 +1,4 @@
-import { agenticToolLoop, parseJsonFromResponse, type LLMToolDefinition } from "../services/llmService";
+import { agenticToolLoop, parseJsonFromResponse, type LLMToolDefinition, type AgentEvent } from "../services/llmService";
 import type { ResumeContent, JDKeywordAnalysis, TailoringChange } from "../types";
 import { calculateATSScore } from "../utils/atsAlgorithm";
 import logger from "../utils/logger";
@@ -31,7 +31,7 @@ const TOOLS: LLMToolDefinition[] = [
   },
   {
     name: "tailor_resume_section",
-    description: "Rewrite a specific resume section to better match the job requirements. Returns the improved content.",
+    description: "Rewrite a specific resume section to better match the job requirements. You must provide the rewritten content in the 'rewritten_content' field of your response after calling this tool.",
     input_schema: {
       type: "object",
       properties: {
@@ -41,6 +41,17 @@ const TOOLS: LLMToolDefinition[] = [
         job_title: { type: "string", description: "The target job title" },
       },
       required: ["section_name", "current_content", "target_keywords", "job_title"],
+    },
+  },
+  {
+    name: "calculate_ats_score",
+    description: "Calculate the current ATS compatibility score of the resume against the job description. Use this to check progress.",
+    input_schema: {
+      type: "object",
+      properties: {
+        resume_json: { type: "string", description: "The current resume content as a JSON string" },
+      },
+      required: ["resume_json"],
     },
   },
   {
@@ -77,12 +88,14 @@ export interface TailorResult {
 
 /**
  * Main resume tailoring agent.
- * Takes a resume + JD, uses Gemini in an agentic loop to tailor the resume.
+ * Takes a resume + JD, uses the LLM in an agentic loop to tailor the resume.
+ * Supports an optional onEvent callback for streaming progress to the UI.
  */
 export async function tailorResume(
   resume: ResumeContent,
   jdText: string,
-  jdAnalysis: JDKeywordAnalysis
+  jdAnalysis: JDKeywordAnalysis,
+  onEvent?: (event: AgentEvent) => void
 ): Promise<TailorResult> {
   // Calculate initial ATS score
   const initialScore = calculateATSScore(resume, jdAnalysis);
@@ -107,16 +120,21 @@ Suggestions: ${initialScore.suggestions.map((s) => s.suggestion).join("; ")}
 
 Please:
 1. First use extract_job_requirements to understand the JD deeply
-2. Then use tailor_resume_section to improve the summary, experience bullets, and skills
-3. Finally use generate_change_summary to list all changes
+2. Then use tailor_resume_section for each section that needs improvement (summary, experience, skills)
+3. Use calculate_ats_score to verify improvements
+4. Finally use generate_change_summary to list all changes
 
 IMPORTANT: Return the COMPLETE tailored resume as JSON at the end of your response, wrapped in \`\`\`json code blocks.
 The JSON must match the exact ResumeContent structure.
 Only modify content to better match the JD — never invent experiences or skills.`;
 
+  // Track section rewrites for building the tailored content
+  const sectionRewrites: Record<string, any> = {};
+
   const toolExecutor = async (toolName: string, input: Record<string, any>): Promise<string> => {
     switch (toolName) {
       case "extract_job_requirements":
+        // Return the real JD analysis data
         return JSON.stringify({
           requiredSkills: jdAnalysis.requiredSkills,
           preferredSkills: jdAnalysis.preferredSkills,
@@ -124,32 +142,91 @@ Only modify content to better match the JD — never invent experiences or skill
           experienceLevel: jdAnalysis.experienceLevel,
           responsibilities: jdAnalysis.responsibilities,
           industry: jdAnalysis.industry,
+          educationRequirement: jdAnalysis.educationRequirement,
+          missingFromResume: initialScore.missingKeywords,
+          matchedKeywords: initialScore.matchedKeywords,
+          currentScore: scoreBefore,
         });
 
-      case "tailor_resume_section":
-        // Let Gemini handle the actual rewriting — we just acknowledge
+      case "tailor_resume_section": {
+        // Record the section being tailored for tracking
+        const sectionName = input.section_name || "unknown";
+        const targetKeywords = input.target_keywords || [];
+        const currentContent = input.current_content || "";
+
+        // Store the rewrite request for later comparison
+        sectionRewrites[sectionName] = {
+          original: currentContent,
+          targetKeywords,
+          jobTitle: input.job_title,
+        };
+
+        // Return actionable guidance to the LLM
         return JSON.stringify({
-          status: "ready",
-          section: input.section_name,
-          keywords_to_incorporate: input.target_keywords,
-          instruction: "Please rewrite this section incorporating the target keywords naturally while maintaining truthfulness.",
+          status: "ready_for_rewrite",
+          section: sectionName,
+          guidance: {
+            keywords_to_incorporate: targetKeywords,
+            missing_keywords: initialScore.missingKeywords.filter(
+              (k) => targetKeywords.some((tk: string) => tk.toLowerCase().includes(k.toLowerCase()))
+            ),
+            suggestions: initialScore.suggestions
+              .filter((s) => s.section.toLowerCase().includes(sectionName.toLowerCase()))
+              .map((s) => s.suggestion),
+            rules: [
+              "Start experience bullets with strong action verbs (Led, Architected, Delivered, Implemented)",
+              "Include quantified metrics where possible (%, $, numbers)",
+              "Naturally incorporate target keywords — don't keyword-stuff",
+              "Keep bullet points to 1-2 lines each",
+              "For skills section, organize into clear categories matching the JD",
+              "For summary, position candidate directly for the target role",
+            ],
+          },
+          instruction: `Rewrite the ${sectionName} section. Include the rewritten content in your next response. The rewritten content should naturally incorporate these keywords: ${targetKeywords.join(", ")}`,
         });
+      }
 
-      case "generate_change_summary":
+      case "calculate_ats_score": {
+        // Actually calculate the ATS score with the current state
+        try {
+          const resumeData = JSON.parse(input.resume_json);
+          const score = calculateATSScore(resumeData, jdAnalysis);
+          return JSON.stringify({
+            overallScore: score.overallScore,
+            breakdown: score.breakdown,
+            matchedKeywords: score.matchedKeywords.length,
+            missingKeywords: score.missingKeywords.slice(0, 10),
+            improvement: score.overallScore - scoreBefore,
+            suggestions: score.suggestions.slice(0, 3).map((s) => s.suggestion),
+          });
+        } catch {
+          return JSON.stringify({
+            error: "Could not parse resume JSON. Please provide valid JSON.",
+            currentScore: scoreBefore,
+          });
+        }
+      }
+
+      case "generate_change_summary": {
         const changes = input.changes || [];
+        const summaryParts = changes.map(
+          (c: any) => `• ${c.section}: ${c.description} (${c.change_type})`
+        );
         return JSON.stringify({
-          summary: changes.map((c: any) => `${c.section}: ${c.description}`).join("\n"),
+          summary: summaryParts.join("\n"),
           totalChanges: changes.length,
+          sectionsModified: [...new Set(changes.map((c: any) => c.section))],
         });
+      }
 
       default:
         return JSON.stringify({ error: `Unknown tool: ${toolName}` });
     }
   };
 
-  const result = await agenticToolLoop(prompt, SYSTEM_PROMPT, TOOLS, toolExecutor, 8);
+  const result = await agenticToolLoop(prompt, SYSTEM_PROMPT, TOOLS, toolExecutor, 8, onEvent);
 
-  // Parse the tailored resume from Gemini's final response
+  // Parse the tailored resume from the final response
   const tailoredContent = parseJsonFromResponse<ResumeContent>(result.finalText);
 
   if (!tailoredContent) {
@@ -217,6 +294,20 @@ function detectChanges(original: ResumeContent, tailored: ResumeContent): Tailor
         impactOnScore: 8,
       });
     }
+
+    // Check if technologies were updated
+    const origTech = orig.technologies.join("|");
+    const tailTech = tail.technologies.join("|");
+    if (origTech !== tailTech) {
+      changes.push({
+        id: `change_${++changeId}`,
+        section: `Technologies: ${orig.title} at ${orig.company}`,
+        originalContent: orig.technologies.join(", "),
+        suggestedContent: tail.technologies.join(", "),
+        reason: "Updated technology list to match job description requirements",
+        impactOnScore: 3,
+      });
+    }
   }
 
   // Skills changes
@@ -231,6 +322,26 @@ function detectChanges(original: ResumeContent, tailored: ResumeContent): Tailor
       reason: "Reorganized and enhanced skills to match job requirements",
       impactOnScore: 10,
     });
+  }
+
+  // Projects changes
+  for (let i = 0; i < Math.max(original.projects.length, tailored.projects.length); i++) {
+    const orig = original.projects[i];
+    const tail = tailored.projects[i];
+    if (!orig || !tail) continue;
+
+    const origProj = JSON.stringify(orig);
+    const tailProj = JSON.stringify(tail);
+    if (origProj !== tailProj) {
+      changes.push({
+        id: `change_${++changeId}`,
+        section: `Project: ${orig.name}`,
+        originalContent: [orig.description, ...orig.bullets].join("\n"),
+        suggestedContent: [tail.description, ...tail.bullets].join("\n"),
+        reason: "Enhanced project description with relevant keywords",
+        impactOnScore: 4,
+      });
+    }
   }
 
   return changes;

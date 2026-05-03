@@ -1,25 +1,28 @@
 {
   "name": "rezumate",
-  "version": "1.0.0",
-  "description": "AI-powered resume tailoring agent via Telegram",
+  "version": "2.0.0",
+  "description": "AI-powered resume agent — Telegram bot + Web app + REST API",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "ts-node src/database/migrate.ts"
+    "dev:api": "API_ONLY=true ts-node src/index.ts",
+    "dev:web": "cd web && npm run dev"
   },
   "keywords": [
     "resume",
     "ai",
     "telegram",
     "ats",
-    "job"
+    "job",
+    "agent"
   ],
   "license": "MIT",
   "dependencies": {
+    "cors": "^2.8.5",
     "dotenv": "^16.4.7",
+    "express": "^4.21.0",
     "groq-sdk": "^1.1.2",
     "mammoth": "^1.8.0",
     "natural": "^8.0.1",
@@ -31,6 +34,8 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
     "@types/node": "^22.10.0",
     "@types/pdfkit": "^0.13.8",
     "@types/sql.js": "^1.4.9",
