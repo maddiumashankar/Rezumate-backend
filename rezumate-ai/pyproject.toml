@@ -19,8 +19,9 @@ dependencies = [
     "python-docx>=1.1.0",       # DOCX text extraction
 
     # ── Embeddings (local, no API) ──
-    "sentence-transformers>=3.0.0",
-    "numpy>=1.26.0",
+    "sentence-transformers<3.0.0",
+    "transformers<5.0.0",
+    "numpy<2.0.0",
 
     # ── Web Framework ──
     "fastapi>=0.115.0",
@@ -43,8 +44,11 @@ dev = [
 ]
 
 [build-system]
-requires = ["setuptools>=75.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["agents*", "app*", "mcp_servers*"]
 
 [tool.ruff]
 line-length = 120

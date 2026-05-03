@@ -266,7 +266,7 @@ export default function LandingPage() {
         </div>
         <div className={styles.footerBottom}>
           <p className="text-muted" style={{ fontSize: "0.75rem" }}>
-            © 2026 Rezumate. Built with ❤️ by maddiumashankar.
+            © 2026 Rezumate. Built with ❤️ by Umashankar Maddi.
           </p>
         </div>
       </footer>

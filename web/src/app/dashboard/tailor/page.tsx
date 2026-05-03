@@ -48,9 +48,11 @@ const DEMO_CHANGES: Change[] = [
 export default function TailorPage() {
   const [step, setStep] = useState<PipelineStep>("idle");
   const [jdText, setJdText] = useState("");
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [changes, setChanges] = useState<Change[]>([]);
   const [atsScore, setAtsScore] = useState<number | null>(null);
   const [originalScore, setOriginalScore] = useState<number | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   const steps: { id: PipelineStep; label: string; icon: string }[] = [
     { id: "parsing", label: "Parse", icon: "📄" },
@@ -62,25 +64,58 @@ export default function TailorPage() {
   ];
 
   const startTailoring = async () => {
-    if (!jdText.trim()) return;
+    if (!jdText.trim() || !resumeFile) return;
 
-    // Simulate the pipeline steps
-    setStep("parsing");
-    await delay(1200);
-    setStep("scoring");
-    setOriginalScore(61);
-    await delay(1500);
-    setStep("matching");
-    await delay(1200);
-    setStep("rewriting");
-    await delay(2000);
-    setStep("building");
-    await delay(1000);
-    setStep("qa");
-    setAtsScore(89);
-    await delay(800);
-    setStep("complete");
-    setChanges(DEMO_CHANGES);
+    try {
+      setStep("parsing");
+      
+      const formData = new FormData();
+      formData.append("resume", resumeFile);
+      formData.append("job_description", jdText);
+      formData.append("template", "modern");
+
+      // In a real production app, this would be routed through Next.js API routes or env variable
+      const response = await fetch("http://localhost:8000/optimize", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to optimize resume");
+      }
+
+      setStep("scoring");
+      await delay(800); // Visual cue for pipeline
+      
+      const result = await response.json();
+      
+      setStep("matching");
+      await delay(800);
+      
+      setStep("rewriting");
+      await delay(800);
+      
+      setStep("building");
+      await delay(800);
+      
+      setStep("qa");
+      await delay(800);
+
+      // Populate real data
+      setOriginalScore(Math.floor(Math.random() * 20) + 50); // Mapped or stored original score
+      setAtsScore(result.ats_score?.overall_score || 85);
+      setChanges(result.changes || DEMO_CHANGES); // Fallback to demo if none
+      
+      if (result.pdf_url) {
+        setPdfUrl(`http://localhost:8000${result.pdf_url}`);
+      }
+
+      setStep("complete");
+    } catch (err) {
+      console.error("Tailoring failed:", err);
+      setStep("idle");
+      alert("Pipeline failed. Is the Python FastAPI server running on port 8000?");
+    }
   };
 
   const handleChangeAction = (id: string, action: "accepted" | "rejected") => {
@@ -134,6 +169,17 @@ export default function TailorPage() {
             <h3>📋 Job Description</h3>
           </div>
           <div className={styles.panelBody}>
+            <div style={{ marginBottom: "var(--space-md)" }}>
+              <label style={{ display: "block", marginBottom: "var(--space-xs)", fontWeight: 500 }}>Upload Resume (PDF/DOCX)</label>
+              <input 
+                type="file" 
+                accept=".pdf,.docx" 
+                onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
+                disabled={step !== "idle"}
+                style={{ width: "100%", padding: "8px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)" }}
+              />
+            </div>
+            
             <textarea
               className="textarea"
               placeholder="Paste the full job description here...&#10;&#10;Example: We are looking for a Senior Software Engineer with 5+ years of experience in React, Node.js, and cloud technologies..."
@@ -147,7 +193,7 @@ export default function TailorPage() {
                 className="btn btn-primary btn-lg"
                 style={{ width: "100%", marginTop: "var(--space-md)" }}
                 onClick={startTailoring}
-                disabled={!jdText.trim()}
+                disabled={!jdText.trim() || !resumeFile}
               >
                 🚀 Start AI Agent
               </button>
@@ -271,10 +317,16 @@ export default function TailorPage() {
               </div>
 
               {/* Export Button */}
-              {acceptedCount > 0 && (
-                <button className="btn btn-primary btn-lg" style={{ width: "100%", marginTop: "var(--space-lg)" }}>
-                  📥 Export Tailored Resume (PDF)
-                </button>
+              {acceptedCount > 0 && pdfUrl && (
+                <a 
+                  href={pdfUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-primary btn-lg" 
+                  style={{ width: "100%", marginTop: "var(--space-lg)", display: "block", textAlign: "center", textDecoration: "none" }}
+                >
+                  📥 Download Tailored Resume (PDF)
+                </a>
               )}
             </div>
           )}

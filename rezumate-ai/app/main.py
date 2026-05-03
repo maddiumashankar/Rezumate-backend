@@ -57,6 +57,7 @@ class OptimizeResponse(BaseModel):
     iterations: int
     pdf_url: str
     messages: list
+    changes: list = []
 
 
 # ── Routes ──
@@ -115,6 +116,35 @@ async def optimize_resume(
         pdf_output = str(OUTPUT_DIR / pdf_filename)
         shutil.move(pdf_source, pdf_output)
 
+    # Format changes for the frontend
+    changes = []
+    
+    # Summary change
+    rewritten_summary = result.get("rewritten_summary")
+    if rewritten_summary:
+        changes.append({
+            "id": f"c_sum_{job_id}",
+            "section": "Summary",
+            "before": "Original Summary (Parsed from PDF)",
+            "after": rewritten_summary,
+            "reason": "Tailored to align with JD requirements",
+            "impact": 5,
+            "status": "pending"
+        })
+
+    # Bullet changes
+    rewritten_bullets = result.get("rewritten_bullets", [])
+    for idx, b in enumerate(rewritten_bullets):
+        changes.append({
+            "id": f"c_b_{idx}_{job_id}",
+            "section": "Experience",
+            "before": b.get("original", ""),
+            "after": b.get("rewritten", ""),
+            "reason": f"Added keywords: {', '.join(b.get('keywords_added', []))}",
+            "impact": 8,
+            "status": "pending"
+        })
+
     return OptimizeResponse(
         job_id=job_id,
         status="completed",
@@ -123,6 +153,7 @@ async def optimize_resume(
         iterations=result.get("iterations", 0),
         pdf_url=f"/download/{job_id}" if pdf_output else "",
         messages=result.get("messages", []),
+        changes=changes,
     )
 
 
@@ -231,4 +262,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
