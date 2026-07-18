@@ -240,7 +240,7 @@ async function callOllama(
     throw new Error(`Ollama error: ${response.status} ${response.statusText}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as any;
 
   return {
     text: data.message?.content || "",

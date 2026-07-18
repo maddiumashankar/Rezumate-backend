@@ -1,14 +1,13 @@
 {
   "name": "rezumate",
   "version": "2.0.0",
-  "description": "AI-powered resume agent — Telegram bot + Web app + REST API",
+  "description": "AI-powered resume agent — Telegram bot + REST API",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "dev:api": "API_ONLY=true ts-node src/index.ts",
-    "dev:web": "cd web && npm run dev"
+    "dev:api": "API_ONLY=true ts-node src/index.ts"
   },
   "keywords": [
     "resume",
