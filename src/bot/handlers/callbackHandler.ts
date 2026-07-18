@@ -8,16 +8,19 @@ import { enhancedATSScore } from "../../agents/atsScorer";
 import { analyzeSkillsGap, formatSkillsGap } from "../../agents/skillsAnalyzer";
 import { generateCoverLetter } from "../../agents/coverLetterAgent";
 import { generateResumePDF } from "../../services/pdfService";
+import { generateResumeAssessment } from "../../agents/resumeEditorAgent";
+import { generateInterviewPrep, formatInterviewPrep } from "../../agents/interviewPrepAgent";
 import {
   mainMenu,
   resumeUploadOptions,
+  resumeReviewOptions,
   editSectionMenu,
   changeApprovalOptions,
   newContentOptions,
   finalReviewOptions,
   templateCategories,
 } from "../keyboards";
-import { formatATSScore, formatResumeSummary, formatTailoringChanges, formatChangesSummary } from "../../utils/formatters";
+import { formatATSScore, formatResumeSummary, formatTailoringChanges, formatChangesSummary, replyInChunks } from "../../utils/formatters";
 import logger from "../../utils/logger";
 import path from "path";
 import fs from "fs";
@@ -66,8 +69,7 @@ export async function handleCallback(ctx: Context): Promise<void> {
         break;
 
       case "interview_prep":
-        await ctx.editMessageText("🎤 *Interview Prep* is coming in V2! Stay tuned.", { parse_mode: "Markdown" });
-        await ctx.reply("What else can I help with?", mainMenu());
+        await handleInterviewPrep(ctx, user.id, session);
         break;
 
       case "cover_letter":
@@ -110,7 +112,16 @@ export async function handleCallback(ctx: Context): Promise<void> {
 
       case "edit_section":
         await conversationMachine.transition(session.id, session.currentState, "RESUME_EDIT", session.stateData);
-        await ctx.editMessageText("Which section would you like to edit?", editSectionMenu());
+        await ctx.editMessageText(
+          "💬 *Conversational Edit Mode*\n\n" +
+            "Just tell me what you want to change! For example:\n" +
+            "• _'Change my summary to highlight AWS certifications'_\n" +
+            "• _'Add Python and Machine Learning to my skills'_\n" +
+            "• _'Add a new project called Tasker Web App'_\n" +
+            "• _'Correct my location to Chicago, IL'_\n\n" +
+            "Type your request in the chat, and I will rewrite and update it for you immediately.",
+          { parse_mode: "Markdown", ...resumeReviewOptions() }
+        );
         break;
 
       // ---- Change Approval ----
@@ -177,8 +188,10 @@ async function handleMyResume(ctx: Context, userId: string): Promise<void> {
     return;
   }
 
+  await ctx.editMessageText("📋 Preparing your resume details...");
+  const assessment = await generateResumeAssessment(resume.contentJson);
   const summary = formatResumeSummary(resume.contentJson);
-  await ctx.editMessageText(summary, { parse_mode: "Markdown" });
+  await replyInChunks(ctx, `${assessment}\n\n---\n${summary}`, { parse_mode: "Markdown" });
 
   // Generate and send PDF
   await ctx.reply("Generating your PDF...");
@@ -191,7 +204,7 @@ async function handleMyResume(ctx: Context, userId: string): Promise<void> {
     source: pdfPath,
     filename: `${resume.contentJson.personal.fullName || "resume"}_resume.pdf`,
   });
-  await ctx.reply("What else can I help with?", mainMenu());
+  await ctx.reply("What else can I help with? You can tailor, check skills gaps, generate a cover letter, or type /menu.");
 }
 
 async function handleSkillsGap(ctx: Context, userId: string, session: any): Promise<void> {
@@ -211,8 +224,8 @@ async function handleSkillsGap(ctx: Context, userId: string, session: any): Prom
   await ctx.editMessageText("🔍 Analyzing your skills gap...");
   const result = await analyzeSkillsGap(resume.contentJson, jd.keywordAnalysis);
   const formatted = formatSkillsGap(result);
-  await ctx.reply(formatted, { parse_mode: "Markdown" });
-  await ctx.reply("What would you like to do next?", mainMenu());
+  await replyInChunks(ctx, formatted, { parse_mode: "Markdown" });
+  await ctx.reply("What would you like to do next? You can generate cover letter, do interview prep, or type /menu.");
 }
 
 async function handleCoverLetter(ctx: Context, userId: string, session: any): Promise<void> {
@@ -231,8 +244,36 @@ async function handleCoverLetter(ctx: Context, userId: string, session: any): Pr
 
   await ctx.editMessageText("✉️ Generating your cover letter...");
   const coverLetter = await generateCoverLetter(resume.contentJson, jd.keywordAnalysis, jd.content);
-  await ctx.reply(`✉️ *Cover Letter*\n\n${coverLetter}`, { parse_mode: "Markdown" });
-  await ctx.reply("What would you like to do next?", mainMenu());
+  await replyInChunks(ctx, `✉️ *Cover Letter*\n\n${coverLetter}`, { parse_mode: "Markdown" });
+  await ctx.reply("What would you like to do next? You can check skills gaps, do interview prep, or type /menu.");
+}
+
+async function handleInterviewPrep(ctx: Context, userId: string, session: any): Promise<void> {
+  const resume = await resumeService.getLatest(userId);
+  if (!resume) {
+    await ctx.editMessageText("You need a resume first to prepare for interviews.", resumeUploadOptions());
+    return;
+  }
+
+  const jd = session.stateData?.jdId ? await jdService.getById(session.stateData.jdId) : null;
+  if (!jd) {
+    await conversationMachine.transition(session.id, session.currentState, "JD_UPLOAD", { resumeId: resume.id, nextAction: "interview_prep" });
+    await ctx.editMessageText("📋 Paste the Job Description you want to prepare for:");
+    return;
+  }
+
+  await ctx.editMessageText("🎤 Generating interview questions tailored for you...");
+  try {
+    const questions = await generateInterviewPrep(resume.contentJson, jd.content);
+    const formatted = formatInterviewPrep(questions);
+    await replyInChunks(ctx, formatted, { parse_mode: "Markdown" });
+    await conversationMachine.reset(session.id);
+    await ctx.reply("What would you like to do next? You can generate cover letter, check skills gaps, or type /menu.");
+  } catch (err: any) {
+    logger.error(`Interview prep generation failed: ${err.message}`);
+    await ctx.reply(`❌ Failed to generate interview questions: ${err.message}`);
+    await ctx.reply("What else can I help with? Type /menu to view all options.");
+  }
 }
 
 async function handleApproveChanges(ctx: Context, userId: string, session: any): Promise<void> {

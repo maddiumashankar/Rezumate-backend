@@ -7,7 +7,8 @@ import { conversationMachine } from "../../state-machine/machine";
 import { resumeService } from "../../services/resumeService";
 import { userRepo } from "../../database/repos/userRepository";
 import { resumeReviewOptions } from "../keyboards";
-import { formatResumeSummary } from "../../utils/formatters";
+import { formatResumeSummary, replyInChunks } from "../../utils/formatters";
+import { generateResumeAssessment } from "../../agents/resumeEditorAgent";
 import { isSupportedFileType, isFileSizeValid } from "../../utils/validators";
 import logger from "../../utils/logger";
 
@@ -70,9 +71,10 @@ export async function handleDocument(ctx: Context): Promise<void> {
       resumeId: resume.id,
     });
 
+    const assessment = await generateResumeAssessment(resume.contentJson);
     const summary = formatResumeSummary(resume.contentJson);
-    await ctx.reply(summary, { parse_mode: "Markdown" });
-    await ctx.reply("Does everything look correct?", resumeReviewOptions());
+    await replyInChunks(ctx, `${assessment}\n\n---\n${summary}`, { parse_mode: "Markdown" });
+    await ctx.reply("Does this sound like you? You can reply directly in chat to ask me to modify any part of it, or click below to proceed.", resumeReviewOptions());
   } catch (err: any) {
     logger.error(`Document handling error: ${err.message}`);
     await ctx.reply(`❌ Error processing your file: ${err.message}\nPlease try again or paste your resume as text.`);

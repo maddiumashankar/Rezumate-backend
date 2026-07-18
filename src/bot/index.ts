@@ -3,6 +3,7 @@ import { startCommand } from "./commands/start";
 import { helpCommand } from "./commands/help";
 import { resumeCommand } from "./commands/resume";
 import { cancelCommand } from "./commands/cancel";
+import { menuCommand } from "./commands/menu";
 import { handleMessage } from "./handlers/messageHandler";
 import { handleCallback } from "./handlers/callbackHandler";
 import { handleDocument } from "./handlers/documentHandler";
@@ -38,6 +39,7 @@ export function createBot(): Telegraf {
   // ---- Commands ----
   bot.command("start", startCommand);
   bot.command("help", helpCommand);
+  bot.command("menu", menuCommand);
   bot.command("resume", resumeCommand);
   bot.command("cancel", cancelCommand);
 

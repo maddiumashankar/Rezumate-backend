@@ -27,8 +27,8 @@ export async function analyzeSkillsGap(
 ): Promise<SkillsGapResult> {
   const resumeSkills = resume.skills.flatMap((c) => c.skills).map((s) => s.toLowerCase());
   const resumeText = [
-    ...resume.experience.flatMap((e) => [...e.bullets, ...e.technologies]),
-    ...resume.projects.flatMap((p) => [...p.bullets, ...p.technologies]),
+    ...resume.experience.flatMap((e) => [...(e.bullets || []), ...(e.technologies || [])]),
+    ...resume.projects.flatMap((p) => [...(p.bullets || []), ...(p.technologies || [])]),
   ]
     .join(" ")
     .toLowerCase();

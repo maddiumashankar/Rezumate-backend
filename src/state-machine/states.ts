@@ -49,5 +49,7 @@ export const STATE_PROMPTS: Record<ConversationState, string> = {
 export function isValidTransition(from: ConversationState, to: ConversationState): boolean {
   // IDLE is always reachable (cancel/reset)
   if (to === "IDLE") return true;
+  // Starting/re-entering entry points for key flows is always allowed
+  if (["RESUME_UPLOAD", "TEMPLATE_SELECT", "JD_UPLOAD"].includes(to)) return true;
   return STATE_TRANSITIONS[from]?.includes(to) ?? false;
 }

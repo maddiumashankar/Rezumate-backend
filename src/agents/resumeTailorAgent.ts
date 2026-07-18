@@ -282,28 +282,28 @@ function detectChanges(original: ResumeContent, tailored: ResumeContent): Tailor
     const tail = tailored.experience[i];
     if (!orig || !tail) continue;
 
-    const origBullets = orig.bullets.join("|");
-    const tailBullets = tail.bullets.join("|");
+    const origBullets = (orig.bullets || []).join("|");
+    const tailBullets = (tail.bullets || []).join("|");
     if (origBullets !== tailBullets) {
       changes.push({
         id: `change_${++changeId}`,
         section: `Experience: ${orig.title} at ${orig.company}`,
-        originalContent: orig.bullets.join("\n"),
-        suggestedContent: tail.bullets.join("\n"),
+        originalContent: (orig.bullets || []).join("\n"),
+        suggestedContent: (tail.bullets || []).join("\n"),
         reason: "Enhanced bullet points with stronger action verbs and relevant keywords",
         impactOnScore: 8,
       });
     }
 
     // Check if technologies were updated
-    const origTech = orig.technologies.join("|");
-    const tailTech = tail.technologies.join("|");
+    const origTech = (orig.technologies || []).join("|");
+    const tailTech = (tail.technologies || []).join("|");
     if (origTech !== tailTech) {
       changes.push({
         id: `change_${++changeId}`,
         section: `Technologies: ${orig.title} at ${orig.company}`,
-        originalContent: orig.technologies.join(", "),
-        suggestedContent: tail.technologies.join(", "),
+        originalContent: (orig.technologies || []).join(", "),
+        suggestedContent: (tail.technologies || []).join(", "),
         reason: "Updated technology list to match job description requirements",
         impactOnScore: 3,
       });
@@ -317,8 +317,8 @@ function detectChanges(original: ResumeContent, tailored: ResumeContent): Tailor
     changes.push({
       id: `change_${++changeId}`,
       section: "Skills",
-      originalContent: original.skills.map((c) => `${c.category}: ${c.skills.join(", ")}`).join("\n"),
-      suggestedContent: tailored.skills.map((c) => `${c.category}: ${c.skills.join(", ")}`).join("\n"),
+      originalContent: original.skills.map((c) => `${c.category}: ${(c.skills || []).join(", ")}`).join("\n"),
+      suggestedContent: tailored.skills.map((c) => `${c.category}: ${(c.skills || []).join(", ")}`).join("\n"),
       reason: "Reorganized and enhanced skills to match job requirements",
       impactOnScore: 10,
     });
@@ -336,8 +336,8 @@ function detectChanges(original: ResumeContent, tailored: ResumeContent): Tailor
       changes.push({
         id: `change_${++changeId}`,
         section: `Project: ${orig.name}`,
-        originalContent: [orig.description, ...orig.bullets].join("\n"),
-        suggestedContent: [tail.description, ...tail.bullets].join("\n"),
+        originalContent: [orig.description, ...(orig.bullets || [])].join("\n"),
+        suggestedContent: [tail.description, ...(tail.bullets || [])].join("\n"),
         reason: "Enhanced project description with relevant keywords",
         impactOnScore: 4,
       });

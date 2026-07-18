@@ -89,12 +89,12 @@ export async function generateResumePDF(content: ResumeContent, outputPath: stri
           doc.font(FONTS.italic).fontSize(10).fillColor(COLORS.accent).text(`${exp.company}${exp.location ? `, ${exp.location}` : ""}  |  ${dateStr}`);
           doc.moveDown(0.3);
 
-          for (const bullet of exp.bullets) {
+          for (const bullet of (exp.bullets || [])) {
             checkPageBreak(doc, 20);
             doc.font(FONTS.body).fontSize(9.5).fillColor(COLORS.text).text(`•  ${bullet}`, { indent: 10, lineGap: 1.5 });
           }
 
-          if (exp.technologies.length > 0) {
+          if (exp.technologies && exp.technologies.length > 0) {
             doc.font(FONTS.italic).fontSize(8.5).fillColor(COLORS.lightText).text(`Technologies: ${exp.technologies.join(", ")}`, { indent: 10 });
           }
           doc.moveDown(0.5);
@@ -111,7 +111,7 @@ export async function generateResumePDF(content: ResumeContent, outputPath: stri
           if (edu.gpa) {
             doc.font(FONTS.body).fontSize(9).fillColor(COLORS.text).text(`GPA: ${edu.gpa}`);
           }
-          for (const h of edu.highlights) {
+          for (const h of (edu.highlights || [])) {
             doc.font(FONTS.body).fontSize(9.5).fillColor(COLORS.text).text(`•  ${h}`, { indent: 10 });
           }
           doc.moveDown(0.4);
@@ -138,10 +138,10 @@ export async function generateResumePDF(content: ResumeContent, outputPath: stri
           if (proj.description) {
             doc.font(FONTS.body).fontSize(9.5).fillColor(COLORS.text).text(proj.description);
           }
-          for (const bullet of proj.bullets) {
+          for (const bullet of (proj.bullets || [])) {
             doc.font(FONTS.body).fontSize(9.5).fillColor(COLORS.text).text(`•  ${bullet}`, { indent: 10 });
           }
-          if (proj.technologies.length > 0) {
+          if (proj.technologies && proj.technologies.length > 0) {
             doc.font(FONTS.italic).fontSize(8.5).fillColor(COLORS.lightText).text(`Technologies: ${proj.technologies.join(", ")}`, { indent: 10 });
           }
           doc.moveDown(0.4);
