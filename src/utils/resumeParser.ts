@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+// @ts-ignore
 import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
 import logger from "./logger";

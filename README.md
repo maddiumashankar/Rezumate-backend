@@ -1,8 +1,8 @@
 # 🎯 Rezumate — AI-Powered Resume Optimization Platform
 
-> **Zero-cost, agentic AI that tailors your resume to any job description — delivered via Web Dashboard & Telegram.**
+> **Zero-cost, agentic AI that tailors your resume to any job description — delivered via Telegram.**
 
-Rezumate is a comprehensive, full-stack AI resume agent platform. It features a **Next.js 16 Web Dashboard** for interactive tailoring, a **Node.js/Express REST API and Telegram Bot** for seamless communication, and a **Python AI backend** powered by LangGraph, MCP tool servers, and lightweight local LLMs. It parses resumes, scores them against job descriptions, rewrites weak content, and generates polished LaTeX PDFs — all without relying on expensive paid APIs.
+Rezumate is a comprehensive, full-stack AI resume agent platform. It features a **Node.js/Express REST API and Telegram Bot** for seamless communication, and a **Python AI backend** powered by LangGraph, MCP tool servers, and lightweight local LLMs. It parses resumes, scores them against job descriptions, rewrites weak content, and generates polished LaTeX PDFs — all without relying on expensive paid APIs.
 
 ---
 
@@ -10,13 +10,13 @@ Rezumate is a comprehensive, full-stack AI resume agent platform. It features a 
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│                          USER INTERFACES                               │
-│  ┌──────────────────────┐              ┌────────────────────────────┐  │
-│  │ Telegram Bot (Mobile)│              │ Next.js Web Dashboard (PC) │  │
-│  └──────────┬───────────┘              └──────────────┬─────────────┘  │
-└─────────────┼─────────────────────────────────────────┼────────────────┘
-              │                                         │
-              ▼                                         ▼
+│                          USER INTERFACE                                │
+│                          ┌──────────────────────┐                      │
+│                          │ Telegram Bot (Mobile)│                      │
+│                          └──────────┬───────────┘                      │
+└─────────────────────────────────────┼──────────────────────────────────┘
+                                      │
+                                      ▼
 ┌────────────────────────────────────────────────────────────────────────┐
 │                   Node.js / TypeScript Layer                           │
 │  ┌──────────┐  ┌────────────┐  ┌───────────┐  ┌────────────────────┐   │
@@ -56,12 +56,6 @@ Rezumate is a comprehensive, full-stack AI resume agent platform. It features a 
 
 ```text
 Rezumate/
-├── web/                          # Frontend — Next.js Web Application
-│   ├── src/app/                  # App Router pages (Dashboard, Tailor, Jobs)
-│   ├── public/                   # Static assets
-│   ├── package.json              # Web dependencies
-│   └── next.config.ts            
-│
 ├── src/                          # Node.js / TypeScript — API & Telegram Bot
 │   ├── index.ts                  # Main entry point
 │   ├── api/                      # Express REST API (routes & server)
@@ -110,23 +104,13 @@ The AI pipeline runs a **self-correcting loop** orchestrated by LangGraph. To op
 | **5. Build LaTeX** | MCP `latex-builder` | ❌ | Merges rewritten content into LaTeX → compiles to PDF |
 | **6. Quality Check** | MCP `ats-scorer` | ❌ | Re-scores; if score < 70, loops back to step 4 (max 2 iterations) |
 
-### Dual Interfaces
+### User Interface
 
-Users can interact with Rezumate through two distinct interfaces:
-1. **Interactive Web Dashboard:** Built with Next.js 16, allowing users to visually upload resumes, paste job descriptions, and see live ATS scoring, skills gap analysis, and tailored PDF previews.
-2. **Telegram Bot:** A conversational UI using a finite state machine that guides users step-by-step from resume upload to final ATS-optimized PDF output directly on their phone.
+Users interact with Rezumate through a conversational **Telegram Bot** UI. A finite state machine guides users step-by-step from resume upload to final ATS-optimized PDF output directly on their mobile phone.
 
 ---
 
 ## 🔧 Tech Stack
-
-### Web Frontend Layer
-| Component | Technology |
-|-----------|-----------|
-| Framework | Next.js 16 |
-| Library | React 19 |
-| Language | TypeScript |
-| Styling | CSS Modules / Custom UI |
 
 ### Node.js API & Bot Layer
 | Component | Technology |
@@ -167,12 +151,7 @@ cd Rezumate-backend
 # 1. Install Backend/API dependencies
 npm install
 
-# 2. Install Web Frontend dependencies
-cd web
-npm install
-cd ..
-
-# 3. Install Python AI dependencies
+# 2. Install Python AI dependencies
 cd rezumate-ai
 pip install -e ".[dev]"
 cd ..
@@ -195,16 +174,13 @@ ollama pull qwen2:1.5b
 
 ### 4. Run the Platform
 
-You'll need to start multiple layers for the full experience:
+You'll need to start multiple layers for the experience:
 
 ```bash
 # Terminal 1: Run the Node.js API & Telegram Bot
 npm run dev
 
-# Terminal 2: Run the Next.js Web Dashboard
-npm run dev:web
-
-# Terminal 3: Run the Python AI Backend
+# Terminal 2: Run the Python AI Backend
 cd rezumate-ai
 uvicorn app.main:app --reload --port 8000
 ```
@@ -218,7 +194,7 @@ uvicorn app.main:app --reload --port 8000
 - **Zero API Cost**: Core tailoring runs locally via Ollama.
 - **LLM-Minimal Workflow**: The LLM is strictly isolated to bullet rewriting and summary generation. Heavy lifting like parsing, ATS scoring, and PDF generation are handled by fast, deterministic MCP tools.
 - **Self-Correcting**: The AI pipeline loops up to 2× automatically if the ATS score remains below an acceptable threshold (70).
-- **Headless AI Backend**: LangGraph is exposed as a microservice, allowing both the Next.js web app and the Telegram bot to securely consume the AI logic.
+- **Headless AI Backend**: LangGraph is exposed as a microservice, allowing the Telegram bot to securely consume the AI logic.
 
 ---
 

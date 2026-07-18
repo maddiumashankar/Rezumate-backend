@@ -88,3 +88,32 @@ export function truncate(text: string, maxLen: number): string {
 export function escapeMarkdown(text: string): string {
   return text.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, "\\$1");
 }
+
+/**
+ * Send a message to Telegram, splitting it into chunks if it exceeds the limit.
+ */
+export async function replyInChunks(ctx: any, text: string, options: any = {}): Promise<void> {
+  const MAX_LENGTH = 4000;
+  if (text.length <= MAX_LENGTH) {
+    await ctx.reply(text, options);
+    return;
+  }
+
+  const lines = text.split("\n");
+  let currentChunk = "";
+
+  for (const line of lines) {
+    if (currentChunk.length + line.length + 1 > MAX_LENGTH) {
+      if (currentChunk.trim()) {
+        await ctx.reply(currentChunk, options);
+      }
+      currentChunk = line;
+    } else {
+      currentChunk += (currentChunk ? "\n" : "") + line;
+    }
+  }
+
+  if (currentChunk.trim()) {
+    await ctx.reply(currentChunk, options);
+  }
+}

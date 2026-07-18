@@ -29,10 +29,10 @@ APPLYING FOR: ${jdAnalysis.experienceLevel} ${jdAnalysis.industry} role
 KEY EXPERIENCE:
 ${resume.experience
     .slice(0, 3)
-    .map((e) => `- ${e.title} at ${e.company}: ${e.bullets.slice(0, 2).join("; ")}`)
+    .map((e) => `- ${e.title} at ${e.company}: ${(e.bullets || []).slice(0, 2).join("; ")}`)
     .join("\n")}
 
-KEY SKILLS: ${resume.skills.flatMap((c) => c.skills).slice(0, 10).join(", ")}
+KEY SKILLS: ${resume.skills.flatMap((c) => c.skills || []).slice(0, 10).join(", ")}
 
 COMPANY: ${jdAnalysis.industry || "the company"}
 JOB TITLE: ${jdAnalysis.experienceLevel}

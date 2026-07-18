@@ -248,10 +248,10 @@ function matchKeywords(
 function extractAllText(resume: ResumeContent): string {
   const parts: string[] = [
     resume.summary,
-    ...resume.experience.flatMap((e) => [e.title, e.company, ...e.bullets, ...e.technologies]),
-    ...resume.education.flatMap((e) => [e.degree, e.field, e.institution, ...e.highlights]),
-    ...resume.skills.flatMap((c) => [c.category, ...c.skills]),
-    ...resume.projects.flatMap((p) => [p.name, p.description, ...p.bullets, ...p.technologies]),
+    ...resume.experience.flatMap((e) => [e.title, e.company, ...(e.bullets || []), ...(e.technologies || [])]),
+    ...resume.education.flatMap((e) => [e.degree, e.field, e.institution, ...(e.highlights || [])]),
+    ...resume.skills.flatMap((c) => [c.category, ...(c.skills || [])]),
+    ...resume.projects.flatMap((p) => [p.name, p.description, ...(p.bullets || []), ...(p.technologies || [])]),
     ...resume.certifications.map((c) => `${c.name} ${c.issuer}`),
   ];
   return parts.filter(Boolean).join(" ");
@@ -259,9 +259,9 @@ function extractAllText(resume: ResumeContent): string {
 
 function extractAllSkills(resume: ResumeContent): string[] {
   return [
-    ...resume.skills.flatMap((c) => c.skills),
-    ...resume.experience.flatMap((e) => e.technologies),
-    ...resume.projects.flatMap((p) => p.technologies),
+    ...resume.skills.flatMap((c) => c.skills || []),
+    ...resume.experience.flatMap((e) => e.technologies || []),
+    ...resume.projects.flatMap((p) => p.technologies || []),
   ];
 }
 
@@ -287,8 +287,8 @@ function calculateFormatScore(resume: ResumeContent): number {
 function calculateExperienceRelevance(resume: ResumeContent, jd: JDKeywordAnalysis): number {
   if (resume.experience.length === 0) return 20;
 
-  const allBullets = resume.experience.flatMap((e) => e.bullets).join(" ").toLowerCase();
-  const allTech = resume.experience.flatMap((e) => e.technologies).map((t) => t.toLowerCase());
+  const allBullets = resume.experience.flatMap((e) => e.bullets || []).join(" ").toLowerCase();
+  const allTech = resume.experience.flatMap((e) => e.technologies || []).map((t) => t.toLowerCase());
   const jdKeywords = [...jd.requiredSkills, ...jd.keywords].map((k) => k.toLowerCase());
 
   let matchCount = 0;
@@ -353,7 +353,7 @@ function calculateSectionCompleteness(resume: ResumeContent): number {
 }
 
 function calculateBulletQuality(resume: ResumeContent): number {
-  const bullets = resume.experience.flatMap((e) => e.bullets);
+  const bullets = resume.experience.flatMap((e) => e.bullets || []);
   if (bullets.length === 0) return 30;
 
   let qualityScore = 0;

@@ -61,12 +61,12 @@ export class ResumeRepository {
   }
 
   private extractMetadata(content: ResumeContent): ResumeMetadata {
-    const allSkills = content.skills.flatMap((c) => c.skills);
-    const expYears = content.experience.reduce((sum, exp) => {
+    const allSkills = (content.skills || []).flatMap((c) => c.skills || []);
+    const expYears = (content.experience || []).reduce((sum, exp) => {
       const start = new Date(exp.startDate); const end = exp.endDate ? new Date(exp.endDate) : new Date();
       return sum + (end.getFullYear() - start.getFullYear());
     }, 0);
-    return { skills: allSkills, experienceYears: expYears, educationLevel: content.education[0]?.degree || "N/A", industries: [], totalBulletPoints: content.experience.reduce((s, e) => s + e.bullets.length, 0) };
+    return { skills: allSkills, experienceYears: expYears, educationLevel: content.education[0]?.degree || "N/A", industries: [], totalBulletPoints: (content.experience || []).reduce((s, e) => s + (e.bullets || []).length, 0) };
   }
 
   private mapRow(row: any): Resume {

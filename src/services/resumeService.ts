@@ -69,6 +69,17 @@ export class ResumeService {
   }
 
   /**
+   * Update the entire content of a resume.
+   */
+  async updateWholeContent(resumeId: string, content: ResumeContent): Promise<Resume> {
+    const resume = await resumeRepo.findById(resumeId);
+    if (!resume) throw new Error("Resume not found");
+
+    await resumeRepo.updateContent(resumeId, content);
+    return { ...resume, contentJson: content };
+  }
+
+  /**
    * Apply tailored changes to a resume, creating a new version.
    */
   async applyTailoredChanges(
