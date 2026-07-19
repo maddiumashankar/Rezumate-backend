@@ -240,6 +240,12 @@ Only modify content to better match the JD — never invent experiences or skill
     };
   }
 
+  // Preserve original personal details (links, email, phone, etc.) to prevent data loss
+  tailoredContent.personal = {
+    ...tailoredContent.personal,
+    ...resume.personal,
+  };
+
   // Calculate new ATS score
   const newScore = calculateATSScore(tailoredContent, jdAnalysis);
   const scoreAfter = newScore.overallScore;

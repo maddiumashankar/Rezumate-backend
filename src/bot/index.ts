@@ -1,11 +1,8 @@
 import { Telegraf } from "telegraf";
 import { startCommand } from "./commands/start";
-import { helpCommand } from "./commands/help";
-import { resumeCommand } from "./commands/resume";
 import { cancelCommand } from "./commands/cancel";
-import { menuCommand } from "./commands/menu";
+import { resetCommand } from "./commands/reset";
 import { handleMessage } from "./handlers/messageHandler";
-import { handleCallback } from "./handlers/callbackHandler";
 import { handleDocument } from "./handlers/documentHandler";
 import logger from "../utils/logger";
 
@@ -38,13 +35,11 @@ export function createBot(): Telegraf {
 
   // ---- Commands ----
   bot.command("start", startCommand);
-  bot.command("help", helpCommand);
-  bot.command("menu", menuCommand);
-  bot.command("resume", resumeCommand);
   bot.command("cancel", cancelCommand);
+  bot.command("exit", cancelCommand);
+  bot.command("reset", resetCommand);
 
   // ---- Handlers ----
-  bot.on("callback_query", handleCallback);
   bot.on("document", handleDocument);
   bot.on("text", handleMessage);
 

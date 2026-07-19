@@ -117,3 +117,110 @@ export async function replyInChunks(ctx: any, text: string, options: any = {}): 
     await ctx.reply(currentChunk, options);
   }
 }
+
+/**
+ * Convert simple Markdown to Telegram-compatible HTML to avoid parsing crashes.
+ * Tokenizes the string to separate code blocks, inline code, and links
+ * so that formatting rules (bold/italic) do not overlap with HTML tags.
+ */
+export function markdownToHtml(markdown: string): string {
+  if (!markdown) return "";
+
+  // Helper to escape HTML characters
+  const escape = (str: string) =>
+    str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+  const parts: { type: "text" | "code_block" | "inline_code" | "link"; content: string; url?: string }[] = [];
+  let current = markdown;
+
+  while (current) {
+    const codeBlockIndex = current.indexOf("```");
+    const inlineCodeIndex = current.indexOf("`");
+    const linkMatch = current.match(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/);
+
+    let firstIndex = Infinity;
+    let matchType: "code_block" | "inline_code" | "link" | null = null;
+    let matchLength = 0;
+    let matchContent = "";
+    let matchUrl = "";
+    let linkIndex = -1;
+
+    if (codeBlockIndex !== -1 && codeBlockIndex < firstIndex) {
+      firstIndex = codeBlockIndex;
+      matchType = "code_block";
+    }
+    if (inlineCodeIndex !== -1 && inlineCodeIndex < firstIndex) {
+      firstIndex = inlineCodeIndex;
+      matchType = "inline_code";
+    }
+    if (linkMatch && linkMatch.index !== undefined && linkMatch.index < firstIndex) {
+      firstIndex = linkMatch.index;
+      matchType = "link";
+      linkIndex = linkMatch.index;
+      matchLength = linkMatch[0].length;
+      matchContent = linkMatch[1];
+      matchUrl = linkMatch[2];
+    }
+
+    if (firstIndex === Infinity) {
+      parts.push({ type: "text", content: current });
+      break;
+    }
+
+    if (firstIndex > 0) {
+      parts.push({ type: "text", content: current.substring(0, firstIndex) });
+    }
+
+    if (matchType === "code_block") {
+      const endCodeBlock = current.indexOf("```", firstIndex + 3);
+      if (endCodeBlock !== -1) {
+        const block = current.substring(firstIndex + 3, endCodeBlock);
+        const cleanBlock = block.replace(/^[a-zA-Z0-9]+\n/, "");
+        parts.push({ type: "code_block", content: cleanBlock });
+        current = current.substring(endCodeBlock + 3);
+      } else {
+        parts.push({ type: "text", content: current.substring(firstIndex) });
+        break;
+      }
+    } else if (matchType === "inline_code") {
+      const endInlineCode = current.indexOf("`", firstIndex + 1);
+      if (endInlineCode !== -1) {
+        parts.push({ type: "inline_code", content: current.substring(firstIndex + 1, endInlineCode) });
+        current = current.substring(endInlineCode + 1);
+      } else {
+        parts.push({ type: "text", content: current.substring(firstIndex) });
+        break;
+      }
+    } else if (matchType === "link") {
+      parts.push({ type: "link", content: matchContent, url: matchUrl });
+      current = current.substring(linkIndex + matchLength);
+    }
+  }
+
+  return parts
+    .map((part) => {
+      if (part.type === "code_block") {
+        return `<pre>${escape(part.content)}</pre>`;
+      }
+      if (part.type === "inline_code") {
+        return `<code>${escape(part.content)}</code>`;
+      }
+      if (part.type === "link") {
+        return `<a href="${escape(part.url || "")}">${escape(part.content)}</a>`;
+      }
+
+      let txt = escape(part.content);
+      // Normalize list bullets
+      txt = txt.replace(/(^|\n)[*\-+]\s+/g, "$1• ");
+      // Bold: *text* or **text**
+      txt = txt.replace(/\*\*?([^*]+)\*\*?/g, "<b>$1</b>");
+      // Italic: _text_
+      txt = txt.replace(/(^|\s)_([^_]+)_(?=\s|$)/g, "$1<i>$2</i>");
+
+      return txt;
+    })
+    .join("");
+}

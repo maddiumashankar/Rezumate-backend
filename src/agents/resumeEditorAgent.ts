@@ -59,7 +59,20 @@ Apply the instruction and output the updated JSON:`;
 
   // Ensure structure is clean
   const cleanResume = { ...createEmptyResumeContent(), ...parsed.updatedResume };
-  
+
+  // Restore any missing/empty personal details (like links) that were present in currentContent
+  if (currentContent.personal) {
+    cleanResume.personal = {
+      ...cleanResume.personal,
+    };
+    for (const key of Object.keys(currentContent.personal)) {
+      const val = currentContent.personal[key as keyof typeof currentContent.personal];
+      if (val && !cleanResume.personal[key as keyof typeof cleanResume.personal]) {
+        (cleanResume.personal as any)[key] = val;
+      }
+    }
+  }
+
   return {
     updatedResume: cleanResume,
     changeSummary: parsed.changeSummary || "Updated resume details",
