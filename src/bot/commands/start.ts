@@ -1,7 +1,7 @@
 import type { Context } from "telegraf";
 import { userRepo } from "../../database/repos/userRepository";
 import { conversationMachine } from "../../state-machine/machine";
-import { mainMenu } from "../keyboards";
+import { markdownToHtml } from "../../utils/formatters";
 import logger from "../../utils/logger";
 
 export async function startCommand(ctx: Context): Promise<void> {
@@ -16,18 +16,16 @@ export async function startCommand(ctx: Context): Promise<void> {
     await conversationMachine.getSession(user.id);
 
     const name = from.first_name;
-    await ctx.reply(
-      `👋 Welcome to *Rezumate*, ${name}!\n\n` +
-        `I'm your AI-powered resume assistant. I can help you:\n\n` +
-        `📄 *Resume Train* — Tailor your resume for any job\n` +
-        `📋 *My Resume* — View & download your latest resume\n` +
-        `📎 *Templates* — Start from a professional template\n` +
-        `🔍 *Skills Gap* — Find what skills you're missing\n` +
-        `✉️ *Cover Letter* — Generate a tailored cover letter\n` +
-        `🎤 *Interview Prep* — Practice for your interview\n\n` +
-        `Let's get started! What would you like to do?`,
-      { parse_mode: "Markdown", ...mainMenu() }
-    );
+    const text = `👋 *Welcome to Rezumate, ${name}!* \n\n` +
+      `I am your AI Career Agent. I can help you with:\n\n` +
+      `• 📄 *Optimize Resume* — Tailor your resume specifically for a target Job Description (JD).\n` +
+      `• 📊 *ATS Score* — Evaluate your resume against a JD to check keyword and format compatibility.\n` +
+      `• 🔍 *Skills Gap Analysis* — Check matching and missing skills relative to the job requirements.\n` +
+      `• ✏️ *Edit & Modify Resume* — Update/rewrite resume sections or bullets directly.\n` +
+      `• 📚 *Career Guidance & Resources* — Get learning links, preparation strategies, and roadmaps (independent of your resume).\n\n` +
+      `What would you like me to do? (You can type your request directly, or upload/paste your resume/JD to get started!)`;
+
+    await ctx.reply(markdownToHtml(text), { parse_mode: "HTML" });
 
     logger.info(`User ${user.id} started bot (telegram: ${from.id})`);
   } catch (err: any) {

@@ -3,19 +3,29 @@ import { conversationMachine } from "../../state-machine/machine";
 import { resumeService } from "../../services/resumeService";
 import { jdService } from "../../services/jdService";
 import { userRepo } from "../../database/repos/userRepository";
+import { jdRepo } from "../../database/repos/jdRepository";
 import { tailorResume } from "../../agents/resumeTailorAgent";
 import { enhancedATSScore } from "../../agents/atsScorer";
 import { analyzeSkillsGap, formatSkillsGap } from "../../agents/skillsAnalyzer";
-import { generateCoverLetter } from "../../agents/coverLetterAgent";
 import { generateResumeAssessment, editResumeWithAI } from "../../agents/resumeEditorAgent";
-import { generateInterviewPrep, formatInterviewPrep } from "../../agents/interviewPrepAgent";
-import { mainMenu, resumeReviewOptions, changeApprovalOptions } from "../keyboards";
-import { formatResumeSummary, formatATSScore, formatTailoringChanges, replyInChunks } from "../../utils/formatters";
-import { callLLM } from "../../services/llmService";
+import { generateResumePDF } from "../../services/pdfService";
+import { formatResumeSummary, formatATSScore, formatTailoringChanges, replyInChunks, markdownToHtml } from "../../utils/formatters";
+import { callLLM, parseJsonFromResponse } from "../../services/llmService";
 import logger from "../../utils/logger";
+import path from "path";
+import fs from "fs";
+
+interface IntentClassification {
+  intent: "ATS_SCORE" | "OPTIMIZE_RESUME" | "SKILLS_GAP" | "EDIT_RESUME" | "CAREER_GUIDANCE_OR_RESOURCES" | "EXPORT_PDF" | "GENERAL_CHAT";
+  hasJobDescription: boolean;
+  extractedJobDescription?: string;
+  hasResumeText: boolean;
+  extractedResumeText?: string;
+  explanation: string;
+}
 
 /**
- * Handle plain text messages based on conversation state.
+ * Handle plain text messages dynamically and agentically.
  */
 export async function handleMessage(ctx: Context): Promise<void> {
   if (!ctx.message || !("text" in ctx.message)) return;
@@ -31,248 +41,543 @@ export async function handleMessage(ctx: Context): Promise<void> {
     }
 
     const session = await conversationMachine.getSession(user.id);
+    const pendingAction = session.stateData?.pendingAction;
 
-    switch (session.currentState) {
-      case "IDLE":
-        await handleIdleConversation(ctx, user.id, session, text);
+    // ---- Case A: Waiting for specific conversational context ----
+    if (pendingAction === "CONFIRM_PDF_NAME") {
+      const suggestions = session.stateData?.suggestions || [];
+      let chosenFilename = "";
+      const normalizedText = text.trim();
+
+      if (normalizedText === "1" && suggestions[0]) {
+        chosenFilename = suggestions[0];
+      } else if (normalizedText === "2" && suggestions[1]) {
+        chosenFilename = suggestions[1];
+      } else if (normalizedText === "3" && suggestions[2]) {
+        chosenFilename = suggestions[2];
+      } else {
+        let customName = normalizedText.replace(/\s+/g, "_");
+        if (!customName.toLowerCase().endsWith(".pdf")) {
+          customName += ".pdf";
+        }
+        chosenFilename = customName;
+      }
+
+      await ctx.reply(markdownToHtml(`📐 *Compiling your resume PDF as ${chosenFilename}...*`), { parse_mode: "HTML" });
+
+      const resume = await resumeService.getLatest(user.id);
+      if (!resume) {
+        await ctx.reply("❌ Resume profile not found. Please upload a resume first.");
+        await conversationMachine.reset(session.id);
+        return;
+      }
+
+      const pdfPath = path.join(process.cwd(), "data", "pdfs", `${user.id}_tailored.pdf`);
+      await generateResumePDF(resume.contentJson, pdfPath);
+
+      if (fs.existsSync(pdfPath)) {
+        await ctx.replyWithDocument({ source: pdfPath, filename: chosenFilename });
+        await ctx.reply("Here is your PDF resume!");
+      } else {
+        await ctx.reply("❌ Error compiling PDF. Please try again.");
+      }
+
+      // Reset pending action but keep resume/jd cached
+      await conversationMachine.updateStateData(session.id, {
+        ...session.stateData,
+        pendingAction: null,
+        suggestions: null,
+      });
+      return;
+    }
+
+    if (pendingAction === "EXPORT_PDF" && session.currentState === "RESUME_UPLOAD") {
+      const isWordy = text.split(/\s+/).length > 4;
+      if (text.length < 40 && !isWordy) {
+        const suggestions = session.stateData?.suggestions || ["My_Resume.pdf", "Draft_Resume.pdf", "Standard_CV.pdf"];
+        let chosenFilename = "";
+        const normalizedText = text.trim();
+
+        if (normalizedText === "1" && suggestions[0]) {
+          chosenFilename = suggestions[0];
+        } else if (normalizedText === "2" && suggestions[1]) {
+          chosenFilename = suggestions[1];
+        } else if (normalizedText === "3" && suggestions[2]) {
+          chosenFilename = suggestions[2];
+        } else {
+          let customName = normalizedText.replace(/\s+/g, "_");
+          if (!customName.toLowerCase().endsWith(".pdf")) {
+            customName += ".pdf";
+          }
+          chosenFilename = customName;
+        }
+
+        await conversationMachine.updateStateData(session.id, {
+          ...session.stateData,
+          futurePdfName: chosenFilename,
+        });
+
+        await ctx.reply(markdownToHtml(`📝 *Future filename saved:* I will export your resume as **${chosenFilename}** once details are uploaded.\n\nNow, please upload your resume file (PDF or DOCX) or paste it here to begin:`), { parse_mode: "HTML" });
+        return;
+      }
+    }
+
+    if (session.currentState === "RESUME_UPLOAD") {
+      // User is explicitly pasting resume
+      if (text.length < 50) {
+        await ctx.reply("That seems too short for a resume. Please paste the full resume text or upload a PDF/DOCX file.");
+        return;
+      }
+      await ctx.reply("🧠 Parsing pasted resume text...");
+      const resume = await resumeService.createFromText(user.id, text);
+      const nextStateData = { ...session.stateData, resumeId: resume.id };
+      await conversationMachine.updateStateData(session.id, nextStateData);
+      
+      const assessment = await generateResumeAssessment(resume.contentJson);
+      const summary = formatResumeSummary(resume.contentJson);
+      await replyInChunks(ctx, markdownToHtml(`✅ *Resume parsed successfully!*\n\n${assessment}\n\n---\n${summary}`), { parse_mode: "HTML" });
+      
+      // If there was a pending action, resume it
+      if (pendingAction) {
+        await conversationMachine.updateStateData(session.id, { ...nextStateData, pendingAction: null });
+        await executePendingAction(ctx, user.id, session.id, pendingAction, nextStateData);
+      } else {
+        await conversationMachine.reset(session.id);
+        await ctx.reply("What would you like me to do with this resume?");
+      }
+      return;
+    }
+
+    if (session.currentState === "JD_UPLOAD") {
+      // User is explicitly pasting Job Description
+      if (text.length < 30) {
+        await ctx.reply("That seems too short for a job description. Please paste the full job description details.");
+        return;
+      }
+      await ctx.reply("📋 Analyzing job description...");
+      const jd = await jdService.parseAndStore(user.id, text);
+      const nextStateData = { ...session.stateData, jdId: jd.id };
+      await conversationMachine.updateStateData(session.id, nextStateData);
+      
+      await ctx.reply(`✅ *Job Description parsed:* "${jd.jobTitle}" at ${jd.companyName}.`);
+      
+      if (pendingAction) {
+        await conversationMachine.updateStateData(session.id, { ...nextStateData, pendingAction: null });
+        await executePendingAction(ctx, user.id, session.id, pendingAction, nextStateData);
+      } else {
+        await conversationMachine.reset(session.id);
+        await ctx.reply("What action would you like to run now?");
+      }
+      return;
+    }
+
+    // ---- Case B: Normal flow — Classify User Intent ----
+    await ctx.sendChatAction("typing");
+    const classification = await classifyIntent(text);
+    logger.info(`Classified user query: "${text.substring(0, 40)}..." -> ${classification.intent} (${classification.explanation})`);
+
+    // Extract inline resume or JD if provided in message
+    let activeResumeId = session.stateData?.resumeId;
+    let activeJdId = session.stateData?.jdId;
+
+    if (classification.hasResumeText && classification.extractedResumeText) {
+      await ctx.reply("📄 *Pasted Resume Detected:* Parsing content...");
+      const resume = await resumeService.createFromText(user.id, classification.extractedResumeText);
+      activeResumeId = resume.id;
+      await conversationMachine.updateStateData(session.id, { resumeId: resume.id });
+    }
+
+    if (classification.hasJobDescription && classification.extractedJobDescription) {
+      await ctx.reply("📋 *Pasted Job Description Detected:* Analyzing requirements...");
+      const jd = await jdService.parseAndStore(user.id, classification.extractedJobDescription);
+      activeJdId = jd.id;
+      await conversationMachine.updateStateData(session.id, { jdId: jd.id });
+      await ctx.reply(`✅ Job Description saved: "${jd.jobTitle}" at ${jd.companyName}.`);
+    }
+
+    // Dispatch intent
+    switch (classification.intent) {
+      case "ATS_SCORE":
+        await handleAtsScoreAction(ctx, user.id, session.id, activeResumeId, activeJdId, text);
         break;
 
-      case "RESUME_UPLOAD":
-        await handleResumeTextInput(ctx, user.id, session, text);
+      case "OPTIMIZE_RESUME":
+        await handleOptimizeResumeAction(ctx, user.id, session.id, activeResumeId, activeJdId, text);
         break;
 
-      case "JD_UPLOAD":
-        await handleJDInput(ctx, user.id, session, text);
+      case "SKILLS_GAP":
+        await handleSkillsGapAction(ctx, user.id, session.id, activeResumeId, activeJdId, text);
         break;
 
-      case "NEW_CONTENT":
-        await handleNewContentInput(ctx, user.id, session, text);
+      case "EDIT_RESUME":
+        await handleEditResumeAction(ctx, user.id, session.id, activeResumeId, text);
         break;
 
-      case "RESUME_REVIEW":
-      case "RESUME_EDIT":
-        await handleConversationalEdit(ctx, user.id, session, text);
+      case "CAREER_GUIDANCE_OR_RESOURCES":
+        await handleCareerGuidanceAction(ctx, user.id, text, activeJdId);
         break;
 
-      case "RESUME_BUILD":
-        await handleBuildInput(ctx, user.id, session, text);
+      case "EXPORT_PDF":
+        await handleExportPdfAction(ctx, user.id, session.id, activeResumeId);
         break;
 
+      case "GENERAL_CHAT":
       default:
-        await ctx.reply("I wasn't expecting text right now. You can type /menu to see options or ask me anything!");
+        await handleGeneralChatAction(ctx, user.id, text);
         break;
     }
   } catch (err: any) {
     logger.error(`Message handler error: ${err.message}`);
-    await ctx.reply(`❌ Error: ${err.message}\nPlease try again. (You can type /menu to see the menu)`);
+    await ctx.reply(`❌ Error processing your request: ${err.message}\nUse /cancel to clear state.`);
   }
 }
 
-// ---- State-specific handlers ----
+// ─── Intent Classifier ──────────────────────────────────────────────────────
 
-async function handleResumeTextInput(ctx: Context, userId: string, session: any, text: string): Promise<void> {
-  if (text.length < 50) {
-    await ctx.reply("That seems too short for a resume. Please paste the full resume text, or upload a PDF/DOCX file.");
-    return;
-  }
+async function classifyIntent(text: string): Promise<IntentClassification> {
+  const systemPrompt = `You are a conversational intent classifier for Rezumate, a career assistant bot.
+Analyze the user's message and categorize their query into exactly one of these intents:
+- "ATS_SCORE": User wants to get their resume's ATS compatibility score against a job description.
+- "OPTIMIZE_RESUME": User wants to tailor, optimize, align, or rewrite their resume for a job description.
+- "SKILLS_GAP": User wants to analyze missing skills, skill matching, or run a skills gap report against a JD.
+- "EDIT_RESUME": User wants to edit, update, add, delete, or modify content, section details, or bullets in their resume (e.g. "add React project", "edit Google bullets", "change email"). Do NOT classify simple questions asking to view, read, list, or summarize profile contents under EDIT_RESUME.
+- "CAREER_GUIDANCE_OR_RESOURCES": User is asking for learning links, technical roadmaps, books, websites, prep strategies, career advice, or mock interview questions (independent of resume).
+- "EXPORT_PDF": User wants to download, export, generate, or receive their resume as a PDF file (e.g., "send me the pdf", "generate PDF", "download resume", "export resume").
+- "GENERAL_CHAT": Standard chit-chat, greetings, conversational remarks, or questions asking to view, read, list, or summarize the contents of their current resume profile (e.g. "what is my experience?", "list my skills", "what projects do I have?").
 
-  await ctx.reply("🧠 Parsing your resume and generating an assessment...");
-  const resume = await resumeService.createFromText(userId, text);
+Also check if they pasted a job description or resume directly within the message. If a large block of text describes a job title, duties, or requirements, set hasJobDescription to true and extract it. If it lists a person's complete contact, skills, or experience entries, set hasResumeText to true and extract it.
 
-  await conversationMachine.transition(session.id, "RESUME_UPLOAD", "RESUME_REVIEW", { resumeId: resume.id });
-
-  const assessment = await generateResumeAssessment(resume.contentJson);
-  const summary = formatResumeSummary(resume.contentJson);
-  await replyInChunks(ctx, `${assessment}\n\n---\n${summary}`, { parse_mode: "Markdown" });
-  await ctx.reply("Does this sound like you? You can reply directly in chat to ask me to modify any part of it, or click below to proceed.", resumeReviewOptions());
+Return ONLY a JSON object matching this schema:
+{
+  "intent": "ATS_SCORE" | "OPTIMIZE_RESUME" | "SKILLS_GAP" | "EDIT_RESUME" | "CAREER_GUIDANCE_OR_RESOURCES" | "EXPORT_PDF" | "GENERAL_CHAT",
+  "hasJobDescription": boolean,
+  "extractedJobDescription": "string (the full text of the job description if pasted in the message, otherwise empty)",
+  "hasResumeText": boolean,
+  "extractedResumeText": "string (the full text of the resume if pasted in the message, otherwise empty)",
+  "explanation": "brief reasoning"
 }
 
-async function handleJDInput(ctx: Context, userId: string, session: any, text: string): Promise<void> {
-  if (text.length < 30) {
-    await ctx.reply("That seems too short for a job description. Please paste the full JD text.");
-    return;
+Do not include markdown packaging (no \`\`\`json wrappers), just output the raw JSON string.`;
+
+  try {
+    const response = await callLLM(`User message: "${text}"`, systemPrompt, 2048);
+    const parsed = parseJsonFromResponse<IntentClassification>(response.text);
+    if (parsed) return parsed;
+  } catch (err: any) {
+    logger.error(`Classification failure: ${err.message}`);
   }
+  return { intent: "GENERAL_CHAT", hasJobDescription: false, hasResumeText: false, explanation: "Fallback to general" };
+}
 
-  await ctx.reply("📋 Analyzing the job description...");
-  const jd = await jdService.parseAndStore(userId, text);
+// ─── Dispatch Action Handlers ───────────────────────────────────────────────
 
-  const resumeId = session.stateData?.resumeId;
-  const nextAction = session.stateData?.nextAction;
-
-  if (!resumeId) {
-    await ctx.reply("No resume found. Please upload a resume first.", mainMenu());
-    return;
-  }
-
-  const resume = await resumeService.getById(resumeId);
+async function handleAtsScoreAction(
+  ctx: Context,
+  userId: string,
+  sessionId: string,
+  resumeId?: string,
+  jdId?: string,
+  originalMessage?: string
+): Promise<void> {
+  const resume = resumeId ? await resumeService.getById(resumeId) : await resumeService.getLatest(userId);
   if (!resume) {
-    await ctx.reply("Resume not found. Please start over.", mainMenu());
+    await conversationMachine.transition(sessionId, "IDLE", "RESUME_UPLOAD", { pendingAction: "ATS_SCORE", originalMessage });
+    await ctx.reply("📄 I need your resume first before I can score it. Please upload your resume file (PDF or DOCX) or paste it as text.");
     return;
   }
 
-  // Handle different next actions (skills_gap, cover_letter, or default ATS analysis)
-  if (nextAction === "skills_gap") {
-    const result = await analyzeSkillsGap(resume.contentJson, jd.keywordAnalysis);
-    const formatted = formatSkillsGap(result);
-    await replyInChunks(ctx, formatted, { parse_mode: "Markdown" });
-    await conversationMachine.reset(session.id);
-    await ctx.reply("What would you like to do next? You can ask me to generate a cover letter, do interview prep, or type /menu.");
+  const jd = jdId ? await jdService.getById(jdId) : await jdRepo.findByUser(userId).then(rows => rows[0]);
+  if (!jd) {
+    await conversationMachine.transition(sessionId, "IDLE", "JD_UPLOAD", { pendingAction: "ATS_SCORE", resumeId: resume.id, originalMessage });
+    await ctx.reply("📋 Job Description needed! Please paste the job description you want to score your resume against.");
     return;
   }
 
-  if (nextAction === "cover_letter") {
-    await ctx.reply("✉️ Generating your cover letter...");
-    const coverLetter = await generateCoverLetter(resume.contentJson, jd.keywordAnalysis, jd.content);
-    await replyInChunks(ctx, `✉️ *Cover Letter*\n\n${coverLetter}`, { parse_mode: "Markdown" });
-    await conversationMachine.reset(session.id);
-    await ctx.reply("What would you like to do next? You can ask me to check skills gaps, do interview prep, or type /menu.");
-    return;
-  }
-
-  if (nextAction === "interview_prep") {
-    await ctx.reply("🎤 Generating interview questions tailored for you...");
-    const questions = await generateInterviewPrep(resume.contentJson, jd.content);
-    const formatted = formatInterviewPrep(questions);
-    await replyInChunks(ctx, formatted, { parse_mode: "Markdown" });
-    await conversationMachine.reset(session.id);
-    await ctx.reply("What would you like to do next? You can ask me to generate a cover letter, check skills gaps, or type /menu.");
-    return;
-  }
-
-  // Default: ATS Analysis + Tailoring
-  await conversationMachine.transition(session.id, "JD_UPLOAD", "ATS_ANALYSIS", { resumeId, jdId: jd.id });
-
-  // Calculate ATS score
-  await ctx.reply("🔍 Calculating ATS score...");
+  await ctx.reply("📊 Calculating ATS compatibility score...");
   const atsScore = await enhancedATSScore(resume.contentJson, jd.keywordAnalysis);
   const atsFormatted = formatATSScore(atsScore);
-  await replyInChunks(ctx, atsFormatted, { parse_mode: "Markdown" });
+  await replyInChunks(ctx, markdownToHtml(atsFormatted), { parse_mode: "HTML" });
+}
 
-  // Tailor the resume
-  await ctx.reply("✨ Tailoring your resume for this role...");
+async function handleOptimizeResumeAction(
+  ctx: Context,
+  userId: string,
+  sessionId: string,
+  resumeId?: string,
+  jdId?: string,
+  originalMessage?: string
+): Promise<void> {
+  const resume = resumeId ? await resumeService.getById(resumeId) : await resumeService.getLatest(userId);
+  if (!resume) {
+    await conversationMachine.transition(sessionId, "IDLE", "RESUME_UPLOAD", { pendingAction: "OPTIMIZE_RESUME", originalMessage });
+    await ctx.reply("📄 I need your resume first. Please upload your resume file (PDF or DOCX) or paste it here.");
+    return;
+  }
+
+  const jd = jdId ? await jdService.getById(jdId) : await jdRepo.findByUser(userId).then(rows => rows[0]);
+  if (!jd) {
+    await conversationMachine.transition(sessionId, "IDLE", "JD_UPLOAD", { pendingAction: "OPTIMIZE_RESUME", resumeId: resume.id, originalMessage });
+    await ctx.reply("📋 Job description is required to optimize. Please paste the job details now:");
+    return;
+  }
+
+  await ctx.reply(markdownToHtml("✨ *Optimizing your resume...* This may take a minute as I align it with the job requirements."), { parse_mode: "HTML" });
   const tailorResult = await tailorResume(resume.contentJson, jd.content, jd.keywordAnalysis);
-
-  // Show suggested changes
-  if (tailorResult.changes.length > 0) {
-    const changesFormatted = formatTailoringChanges(tailorResult.changes);
-    await replyInChunks(ctx, `📝 *Suggested Changes:*\n\n${changesFormatted}`, { parse_mode: "Markdown" });
-
-    await ctx.reply(
-      `📊 *Score Impact:* ${tailorResult.scoreBefore} → ${tailorResult.scoreAfter} (+${tailorResult.scoreAfter - tailorResult.scoreBefore})`,
-      { parse_mode: "Markdown" }
-    );
-
-    await conversationMachine.transition(session.id, "ATS_ANALYSIS", "CHANGE_APPROVAL", {
-      resumeId,
-      jdId: jd.id,
-      tailorResult,
-    });
-
-    await ctx.reply("Would you like to approve these changes?", changeApprovalOptions());
-  } else {
-    await ctx.reply("✅ Your resume is already well-optimized for this role! No major changes needed.");
-    await conversationMachine.reset(session.id);
-    await ctx.reply("What would you like to do next? You can tailor for another job description, generate cover letter, or type /menu.");
-  }
-}
-
-async function handleNewContentInput(ctx: Context, userId: string, session: any, text: string): Promise<void> {
-  await ctx.reply("📝 Incorporating your new content...");
-
-  // Store new content in state data for the finalization step
-  await conversationMachine.updateStateData(session.id, {
-    newContent: text,
-  });
-
-  await ctx.reply("Got it! I'll include this in your tailored resume. Proceeding to finalization...");
-
-  // Transition directly to FINAL_REVIEW instead of simulating a callback
-  await conversationMachine.transition(session.id, "NEW_CONTENT", "FINAL_REVIEW", session.stateData);
-  await ctx.reply("Your resume has been updated. Would you like to export it? Type /menu to view download and select options.");
-}
-
-async function handleConversationalEdit(ctx: Context, userId: string, session: any, text: string): Promise<void> {
-  const resumeId = session.stateData?.resumeId;
-  if (!resumeId) {
-    await ctx.reply("No resume found. Please upload a resume first.", mainMenu());
-    return;
-  }
-
-  await ctx.reply("🧠 Processing your request and updating your resume...");
-  try {
-    const resume = await resumeService.getById(resumeId);
-    if (!resume) {
-      await ctx.reply("Resume not found. Please upload it again.", mainMenu());
-      return;
-    }
-
-    const { updatedResume, changeSummary } = await editResumeWithAI(resume.contentJson, text);
-    
-    // Save updated content
-    await resumeService.updateWholeContent(resumeId, updatedResume);
-
-    await ctx.reply(`✨ *Updated:* ${changeSummary}`, { parse_mode: "Markdown" });
-
-    // Show fresh assessment
-    const assessment = await generateResumeAssessment(updatedResume);
-    const summary = formatResumeSummary(updatedResume);
-    await replyInChunks(ctx, `${assessment}\n\n---\n${summary}`, { parse_mode: "Markdown" });
-    await ctx.reply("Does everything look correct now? You can type another instruction directly to update it, or click below to proceed.", resumeReviewOptions());
-  } catch (err: any) {
-    logger.error(`Conversational edit failed: ${err.message}`);
-    await ctx.reply(`❌ Sorry, I had trouble making that change: ${err.message}\n\nPlease try again with a different request.`);
-  }
-}
-
-async function handleBuildInput(ctx: Context, userId: string, session: any, text: string): Promise<void> {
-  await ctx.reply("📝 Resume building from scratch is coming in V2. For now, please upload a resume or use a template.");
-}
-
-async function handleIdleConversation(ctx: Context, userId: string, session: any, text: string): Promise<void> {
-  const textLower = text.toLowerCase().trim();
   
-  if (
-    ["menu", "help", "features", "what can you do", "what are your features", "how to use", "options", "commands"].some(
-      (kw) => textLower.includes(kw)
-    )
-  ) {
-    await ctx.reply(
-      `🤖 *Rezumate Agent Capabilities:*\n\n` +
-        `• 📄 *Tailor Resumes* — Optimize your resume for a job description.\n` +
-        `• 🔍 *Skills Gap Analysis* — Find what skills are missing relative to the job requirements.\n` +
-        `• ✉️ *Cover Letters* — Generate custom cover letters tailored to your profile.\n` +
-        `• 🎤 *Interview Preparation* — Get customized practice questions and STAR strategies.\n` +
-        `• ✏️ *Conversational Editing* — Tell me *"Add Python to my skills"* or *"Rewrite my Google experience"* and I will edit your resume directly!\n\n` +
-        `To get a list of clickable buttons at any time, type /menu.`
-    );
+  await resumeService.applyTailoredChanges(
+    resume.id,
+    tailorResult.tailoredContent,
+    tailorResult.changesSummary,
+    tailorResult.scoreBefore,
+    tailorResult.scoreAfter,
+    jd.id
+  );
+
+  const changesFormatted = formatTailoringChanges(tailorResult.changes);
+  await replyInChunks(ctx, markdownToHtml(`📝 *Suggested Changes Applied:*\n\n${changesFormatted}`), { parse_mode: "HTML" });
+  await ctx.reply(markdownToHtml(`📊 *Score Improved:* ${tailorResult.scoreBefore} → ${tailorResult.scoreAfter} (+${tailorResult.scoreAfter - tailorResult.scoreBefore})`), { parse_mode: "HTML" });
+
+  await ctx.reply("📐 Compiling tailored resume PDF...");
+  const pdfPath = path.join(process.cwd(), "data", "pdfs", `${userId}_tailored.pdf`);
+  await generateResumePDF(tailorResult.tailoredContent, pdfPath);
+  
+  if (fs.existsSync(pdfPath)) {
+    const user = await userRepo.findById(userId);
+    await ctx.replyWithDocument({ source: pdfPath, filename: `${user?.firstName || "optimized"}_resume.pdf` });
+    await ctx.reply("Here is your optimized PDF resume!");
+  } else {
+    await ctx.reply("❌ Error generating PDF file, but changes have been successfully applied to your profile dataset.");
+  }
+}
+
+async function handleSkillsGapAction(
+  ctx: Context,
+  userId: string,
+  sessionId: string,
+  resumeId?: string,
+  jdId?: string,
+  originalMessage?: string
+): Promise<void> {
+  const resume = resumeId ? await resumeService.getById(resumeId) : await resumeService.getLatest(userId);
+  if (!resume) {
+    await conversationMachine.transition(sessionId, "IDLE", "RESUME_UPLOAD", { pendingAction: "SKILLS_GAP", originalMessage });
+    await ctx.reply("📄 Resume needed! Please upload your resume file (PDF or DOCX) or paste it as text.");
     return;
   }
 
+  const jd = jdId ? await jdService.getById(jdId) : await jdRepo.findByUser(userId).then(rows => rows[0]);
+  if (!jd) {
+    await conversationMachine.transition(sessionId, "IDLE", "JD_UPLOAD", { pendingAction: "SKILLS_GAP", resumeId: resume.id, originalMessage });
+    await ctx.reply("📋 Job description needed for skills gap check. Please paste the JD details:");
+    return;
+  }
+
+  await ctx.reply("🔍 Running skills gap analysis...");
+  const result = await analyzeSkillsGap(resume.contentJson, jd.keywordAnalysis);
+  const formatted = formatSkillsGap(result);
+  await replyInChunks(ctx, markdownToHtml(formatted), { parse_mode: "HTML" });
+}
+
+async function handleEditResumeAction(
+  ctx: Context,
+  userId: string,
+  sessionId: string,
+  resumeId?: string,
+  instruction?: string
+): Promise<void> {
+  const resume = resumeId ? await resumeService.getById(resumeId) : await resumeService.getLatest(userId);
+  if (!resume) {
+    await conversationMachine.transition(sessionId, "IDLE", "RESUME_UPLOAD", { pendingAction: "EDIT_RESUME", originalMessage: instruction });
+    await ctx.reply("📄 Please upload your resume first so I know what details to modify.");
+    return;
+  }
+
+  if (!instruction) {
+    await ctx.reply("What details would you like to edit or add? (e.g. \"add python, fastapi to skills\", \"change email to me@example.com\")");
+    return;
+  }
+
+  await ctx.reply("🧠 Processing edits on your resume profile...");
+  const { updatedResume, changeSummary } = await editResumeWithAI(resume.contentJson, instruction);
+  
+  const isChanged = JSON.stringify(resume.contentJson) !== JSON.stringify(updatedResume);
+  
+  if (isChanged) {
+    await resumeService.updateWholeContent(resume.id, updatedResume);
+    await ctx.reply(
+      markdownToHtml(`✨ *Updated details successfully:* ${changeSummary}\n\n` +
+        `Would you like to make more edits, check your ATS score, or type *"generate PDF"* to compile and download your updated resume now?`),
+      { parse_mode: "HTML" }
+    );
+  } else {
+    await ctx.reply(
+      markdownToHtml(`ℹ️ *No changes were made to your resume content:* ${changeSummary}\n\n` +
+        `Let me know if there's anything else you'd like to update, or type *"generate PDF"* to download your current resume.`),
+      { parse_mode: "HTML" }
+    );
+  }
+}
+
+async function handleCareerGuidanceAction(ctx: Context, userId: string, query: string, jdId?: string): Promise<void> {
   await ctx.sendChatAction("typing");
   const resume = await resumeService.getLatest(userId);
-  
-  let prompt = `You are Rezumate, a brilliant and supportive AI Career Agent. The user is chatting with you in conversational mode.
-User message: "${text}"
+  const jd = jdId ? await jdService.getById(jdId) : await jdRepo.findByUser(userId).then(rows => rows[0]);
+
+  let prompt = `You are Rezumate, a helpful and warm AI Career Coach.
+The user is asking for career guidance, technical resources, prep strategies, learning links, roadmaps, or guidance on job searching.
+User query: "${query}"
 
 `;
-  if (resume) {
-    prompt += `The user has uploaded their resume.
-Candidate Name: ${resume.contentJson.personal.fullName || "User"}
-Current Title: ${resume.contentJson.personal.title || "N/A"}
-Resume Summary: ${resume.contentJson.summary || "N/A"}
+  if (jd) {
+    prompt += `Target Job Details:
+Title: ${jd.jobTitle} at ${jd.companyName}
+JD Context: ${jd.content.substring(0, 800)}
 
-Please address the user's message fully and professionally. 
-If they ask for career advice, technical project ideas, cover letter advice, mock interview tips, or resume reviews, provide a complete, detailed, and high-quality response. Use formatting (bullet points, bold text) where helpful to make the output readable.
-Do not limit your response size unless appropriate, but keep it structured. Use their resume context (if applicable) to personalize your advice.`;
-  } else {
-    prompt += `The user has not uploaded a resume yet.
-Please address the user's message fully. If they ask general career or project questions, answer them comprehensively. Encourage them to upload their resume (as PDF/DOCX) or paste it, so that you can provide highly personalized advice, tailoring, and interview prep.`;
+`;
   }
+  if (resume) {
+    prompt += `Candidate current resume JSON context:
+${JSON.stringify(resume.contentJson, null, 2)}
+
+`;
+  }
+
+  prompt += `Provide a comprehensive, professional, and practical response:
+1. Outline learning resources (e.g. official docs, popular online portals, key books, recommended frameworks).
+2. Detail preparation strategies and roadmaps.
+3. Suggest top skill focus areas that match their queries.
+Use markdown bullets, headers, and bold text for visual structure.`;
 
   try {
     const response = await callLLM(prompt, "You are a warm, collaborative AI career agent.", 2048);
-    await replyInChunks(ctx, response.text.trim(), { parse_mode: "Markdown" });
+    await replyInChunks(ctx, markdownToHtml(response.text.trim()), { parse_mode: "HTML" });
   } catch (err: any) {
-    await ctx.reply("I'm here to help you optimize your resume, prepare for interviews, or check skills gap! To see the main menu, type /menu.");
+    logger.error(`Career advice error: ${err.message}`);
+    await ctx.reply("❌ Sorry, I had trouble compiling resources. Focus on official frameworks, build solid projects, and review standard mock questions. What else can I guide you with?");
   }
+}
+
+async function handleGeneralChatAction(ctx: Context, userId: string, text: string): Promise<void> {
+  await ctx.sendChatAction("typing");
+  const resume = await resumeService.getLatest(userId);
+
+  let prompt = `You are Rezumate, a warm, conversational AI Career Agent.
+Candidate chat query: "${text}"
+
+`;
+  if (resume) {
+    prompt += `Candidate Profile JSON:
+${JSON.stringify(resume.contentJson, null, 2)}
+
+`;
+  }
+
+  prompt += `Answer the candidate conversationally. If they ask about their profile (e.g. their experiences, education, skills, projects, etc.), answer them fully by reading the Candidate Profile JSON. Otherwise, invite them to test features like checking ATS score, running skills gap check, optimizing resume against a job description, or asking for roadmaps/career resources.`;
+
+  try {
+    const response = await callLLM(prompt, "You are a warm, collaborative AI career agent.", 1024);
+    await replyInChunks(ctx, markdownToHtml(response.text.trim()), { parse_mode: "HTML" });
+  } catch (err: any) {
+    await ctx.reply("Hello! I am Rezumate, your AI Career Agent. Let me know if you would like to analyze your resume, optimize it against a JD, check skills gaps, or get learning links!");
+  }
+}
+
+async function executePendingAction(ctx: Context, userId: string, sessionId: string, action: string, stateData: Record<string, any>): Promise<void> {
+  const text = stateData.originalMessage || "";
+  const resumeId = stateData.resumeId;
+  const jdId = stateData.jdId;
+
+  switch (action) {
+    case "ATS_SCORE":
+      await handleAtsScoreAction(ctx, userId, sessionId, resumeId, jdId, text);
+      break;
+    case "OPTIMIZE_RESUME":
+      await handleOptimizeResumeAction(ctx, userId, sessionId, resumeId, jdId, text);
+      break;
+    case "SKILLS_GAP":
+      await handleSkillsGapAction(ctx, userId, sessionId, resumeId, jdId, text);
+      break;
+    case "EDIT_RESUME":
+      await handleEditResumeAction(ctx, userId, sessionId, resumeId, text);
+      break;
+    case "EXPORT_PDF":
+      await handleExportPdfAction(ctx, userId, sessionId, resumeId);
+      break;
+  }
+}
+
+async function handleExportPdfAction(
+  ctx: Context,
+  userId: string,
+  sessionId: string,
+  resumeId?: string
+): Promise<void> {
+  const resume = resumeId ? await resumeService.getById(resumeId) : await resumeService.getLatest(userId);
+  if (!resume) {
+    const suggestions = ["My_Resume.pdf", "Draft_Resume.pdf", "Standard_CV.pdf"];
+    await conversationMachine.transition(sessionId, "IDLE", "RESUME_UPLOAD", {
+      pendingAction: "EXPORT_PDF",
+      suggestions,
+    });
+
+    const msg = `📄 *You don't have a resume profile yet.* Please upload your resume file (PDF or DOCX) or paste it here to get started.\n\n` +
+      `For your future PDF exports, what filename would you prefer? Here are some suggestions:\n` +
+      `1. **My_Resume.pdf**\n` +
+      `2. **Draft_Resume.pdf**\n` +
+      `3. **Standard_CV.pdf**\n\n` +
+      `You can type the number, a custom name, or simply upload your resume!`;
+    await ctx.reply(markdownToHtml(msg), { parse_mode: "HTML" });
+    return;
+  }
+
+  const session = await conversationMachine.getSession(userId);
+  const futurePdfName = session.stateData?.futurePdfName;
+
+  if (futurePdfName) {
+    await ctx.reply(markdownToHtml(`📐 *Compiling your resume PDF as ${futurePdfName}...*`), { parse_mode: "HTML" });
+    const pdfPath = path.join(process.cwd(), "data", "pdfs", `${userId}_tailored.pdf`);
+    await generateResumePDF(resume.contentJson, pdfPath);
+
+    if (fs.existsSync(pdfPath)) {
+      await ctx.replyWithDocument({ source: pdfPath, filename: futurePdfName });
+      await ctx.reply("Here is your PDF resume!");
+    } else {
+      await ctx.reply("❌ Error compiling PDF. Please try again.");
+    }
+
+    await conversationMachine.updateStateData(sessionId, {
+      ...session.stateData,
+      futurePdfName: null,
+    });
+    return;
+  }
+
+  const personal = resume.contentJson.personal || {};
+  const fullName = personal.fullName || "";
+  const title = personal.title || "Developer";
+
+  let cleanBase = fullName.trim().replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_");
+  if (!cleanBase) {
+    cleanBase = "My";
+  }
+  const cleanTitle = title.trim().replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_");
+
+  const s1 = `${cleanBase}_Resume.pdf`;
+  const s2 = `${cleanBase}_CV.pdf`;
+  const s3 = `${cleanBase}_${cleanTitle}_Resume.pdf`;
+
+  const suggestions = [s1, s2, s3];
+  await conversationMachine.updateStateData(sessionId, {
+    ...session.stateData,
+    pendingAction: "CONFIRM_PDF_NAME",
+    suggestions,
+  });
+
+  const msg = `📐 *I am ready to compile your PDF resume!*\n\n` +
+    `What would you like to name the PDF file? Here are some suggestions:\n` +
+    `1. **${s1}**\n` +
+    `2. **${s2}**\n` +
+    `3. **${s3}**\n\n` +
+    `Please type the number (**1**, **2**, or **3**) or reply with your own custom filename (e.g. *My_Custom_CV.pdf*).`;
+  await ctx.reply(markdownToHtml(msg), { parse_mode: "HTML" });
 }

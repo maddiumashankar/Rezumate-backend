@@ -6,14 +6,16 @@ import http from "http";
 import { conversationMachine } from "../../state-machine/machine";
 import { resumeService } from "../../services/resumeService";
 import { userRepo } from "../../database/repos/userRepository";
-import { resumeReviewOptions } from "../keyboards";
-import { formatResumeSummary, replyInChunks } from "../../utils/formatters";
+import { formatResumeSummary, replyInChunks, markdownToHtml } from "../../utils/formatters";
 import { generateResumeAssessment } from "../../agents/resumeEditorAgent";
 import { isSupportedFileType, isFileSizeValid } from "../../utils/validators";
+import { handleMessage } from "./messageHandler";
 import logger from "../../utils/logger";
 
 /**
  * Handle document (file) uploads from users.
+ * Conversational behavior: accepts uploads anytime, parses it, updates session resumeId,
+ * and checks if there's a pending user command.
  */
 export async function handleDocument(ctx: Context): Promise<void> {
   if (!ctx.message || !("document" in ctx.message) || !ctx.message.document) return;
@@ -22,7 +24,7 @@ export async function handleDocument(ctx: Context): Promise<void> {
   if (!telegramId) return;
 
   try {
-    // Validate file
+    // Validate file type
     const mimeType = doc.mime_type || "";
     if (!isSupportedFileType(mimeType)) {
       await ctx.reply("❌ Unsupported file type. Please upload a PDF or DOCX file.");
@@ -43,12 +45,6 @@ export async function handleDocument(ctx: Context): Promise<void> {
 
     const session = await conversationMachine.getSession(user.id);
 
-    // Only accept documents during RESUME_UPLOAD state or IDLE
-    if (session.currentState !== "RESUME_UPLOAD" && session.currentState !== "IDLE") {
-      await ctx.reply("I wasn't expecting a file right now. Use the menu options to navigate.");
-      return;
-    }
-
     await ctx.reply("📥 Downloading and parsing your resume...");
 
     // Download the file
@@ -64,20 +60,62 @@ export async function handleDocument(ctx: Context): Promise<void> {
     const resume = await resumeService.createFromFile(user.id, tmpPath, doc.file_name || "resume");
 
     // Clean up temp file
-    fs.unlinkSync(tmpPath);
+    if (fs.existsSync(tmpPath)) {
+      fs.unlinkSync(tmpPath);
+    }
 
-    // Transition to RESUME_REVIEW
-    await conversationMachine.transition(session.id, session.currentState, "RESUME_REVIEW", {
-      resumeId: resume.id,
-    });
+    // Update active resume ID in session data
+    const nextStateData = { ...session.stateData, resumeId: resume.id };
+    await conversationMachine.updateStateData(session.id, nextStateData);
 
     const assessment = await generateResumeAssessment(resume.contentJson);
     const summary = formatResumeSummary(resume.contentJson);
-    await replyInChunks(ctx, `${assessment}\n\n---\n${summary}`, { parse_mode: "Markdown" });
-    await ctx.reply("Does this sound like you? You can reply directly in chat to ask me to modify any part of it, or click below to proceed.", resumeReviewOptions());
+    
+    const welcomeMsg = `✅ *Resume uploaded and parsed successfully!*\n\n${assessment}\n\n---\n${summary}`;
+    await replyInChunks(ctx, markdownToHtml(welcomeMsg), { parse_mode: "HTML" });
+
+    // Check if there was a pending action waiting for a resume
+    const pendingAction = session.stateData?.pendingAction;
+    if (pendingAction) {
+      await ctx.reply(`🔄 *Resuming your previous request:* I will now continue with optimizing/analyzing your resume.`);
+      // Clear pending action before running it to avoid loops
+      await conversationMachine.updateStateData(session.id, { ...nextStateData, pendingAction: null });
+      
+      // Inject user message to re-trigger handling with the newly uploaded resume context
+      const fakeText = getFakeMessageForAction(pendingAction, session.stateData?.originalMessage);
+      
+      // Re-route internally using handleMessage by creating a dummy message context
+      const modifiedCtx = {
+        ...ctx,
+        message: {
+          ...ctx.message,
+          text: fakeText,
+        }
+      } as any;
+      
+      await handleMessage(modifiedCtx);
+    } else {
+      await ctx.reply("What would you like me to do with your resume? (e.g. check ATS score against a JD, optimize it, analyze skills gaps, or make conversational edits). Feel free to type your request directly!");
+    }
   } catch (err: any) {
     logger.error(`Document handling error: ${err.message}`);
-    await ctx.reply(`❌ Error processing your file: ${err.message}\nPlease try again or paste your resume as text.`);
+    await ctx.reply(`❌ Error processing your file: ${err.message}\nPlease try again.`);
+  }
+}
+
+function getFakeMessageForAction(action: string, originalMessage?: string): string {
+  if (originalMessage) return originalMessage;
+  switch (action) {
+    case "ATS_SCORE":
+      return "Check ATS score";
+    case "OPTIMIZE_RESUME":
+      return "Optimize my resume";
+    case "SKILLS_GAP":
+      return "Analyze skills gap";
+    case "EDIT_RESUME":
+      return "Edit my resume";
+    default:
+      return "Help me review my resume";
   }
 }
 
@@ -94,7 +132,9 @@ function downloadFile(url: string, dest: string): Promise<void> {
         });
       })
       .on("error", (err) => {
-        fs.unlinkSync(dest);
+        if (fs.existsSync(dest)) {
+          fs.unlinkSync(dest);
+        }
         reject(err);
       });
   });

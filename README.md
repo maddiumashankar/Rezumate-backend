@@ -106,7 +106,15 @@ The AI pipeline runs a **self-correcting loop** orchestrated by LangGraph. To op
 
 ### User Interface
 
-Users interact with Rezumate through a conversational **Telegram Bot** UI. A finite state machine guides users step-by-step from resume upload to final ATS-optimized PDF output directly on their mobile phone.
+Users interact with Rezumate through an open-ended, fully conversational **Telegram Bot** UI:
+* **Agentic Intent Routing**: Obsolete command menus and inline buttons are completely removed. A dynamic LLM classifier categorizes requests on-the-fly (e.g. ATS scoring, skills gap, career roadmap resource compilation, resume editing, or PDF export).
+* **Flexible Dependency Resolution**: Resume or Job Description details can be uploaded or pasted at any point. The bot pauses, caches the pending action, and resumes automatically once documents are received.
+* **On-Demand PDF Exports**: Instead of compiling files automatically, the bot generates custom filename suggestions (e.g. `[Name]_Resume.pdf`, `[Name]_CV.pdf`) and compiles the document only when requested by the user, saving resources.
+* **Zero-Crash HTML Formatting**: Powered by a custom tokenized Markdown-to-HTML parser that prevents Telegram entity parse crashes from unclosed formatting tags in AI responses.
+* **Command Registry**: Keeps commands minimal and direct:
+  * `/start` - Start conversational onboarding.
+  * `/cancel` / `/exit` - Clear active context back to IDLE.
+  * `/reset` - Permanently delete all profile records, resumes, and session data.
 
 ---
 
