@@ -21,6 +21,6 @@ COPY . .
 # Create data directories
 RUN mkdir -p data/uploads data/outputs
 
-EXPOSE 8000 8501
+EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

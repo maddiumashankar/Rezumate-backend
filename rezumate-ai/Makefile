@@ -19,10 +19,6 @@ run-api:
 	@echo "🚀 Starting Rezumate API on http://localhost:8000"
 	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-run-ui:
-	@echo "🌐 Starting Streamlit UI on http://localhost:8501"
-	streamlit run app/streamlit_app.py
-
 run-ollama:
 	@echo "🦙 Starting Ollama LLM server..."
 	ollama serve
@@ -31,7 +27,6 @@ run-local:
 	@echo "🚀 Starting all services (run in separate terminals):"
 	@echo "  Terminal 1: make run-ollama"
 	@echo "  Terminal 2: make run-api"
-	@echo "  Terminal 3: make run-ui"
 
 # ── Docker ──
 run-docker:
