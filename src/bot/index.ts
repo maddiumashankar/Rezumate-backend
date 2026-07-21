@@ -4,6 +4,7 @@ import { cancelCommand } from "./commands/cancel";
 import { resetCommand } from "./commands/reset";
 import { handleMessage } from "./handlers/messageHandler";
 import { handleDocument } from "./handlers/documentHandler";
+import { lockMiddleware } from "./middleware/lockMiddleware";
 import logger from "../utils/logger";
 
 export function createBot(): Telegraf {
@@ -32,6 +33,8 @@ export function createBot(): Telegraf {
     const ms = Date.now() - start;
     logger.debug(`[${userId}] Response time: ${ms}ms`);
   });
+
+  bot.use(lockMiddleware);
 
   // ---- Commands ----
   bot.command("start", startCommand);

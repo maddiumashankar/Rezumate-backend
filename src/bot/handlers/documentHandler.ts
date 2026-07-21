@@ -9,7 +9,7 @@ import { userRepo } from "../../database/repos/userRepository";
 import { formatResumeSummary, replyInChunks, markdownToHtml } from "../../utils/formatters";
 import { generateResumeAssessment } from "../../agents/resumeEditorAgent";
 import { isSupportedFileType, isFileSizeValid } from "../../utils/validators";
-import { handleMessage } from "./messageHandler";
+import { handleMessage, executePendingAction } from "./messageHandler";
 import logger from "../../utils/logger";
 
 /**
@@ -77,24 +77,17 @@ export async function handleDocument(ctx: Context): Promise<void> {
     // Check if there was a pending action waiting for a resume
     const pendingAction = session.stateData?.pendingAction;
     if (pendingAction) {
-      await ctx.reply(`🔄 *Resuming your previous request:* I will now continue with optimizing/analyzing your resume.`);
-      // Clear pending action before running it to avoid loops
+      const resumptionMsg = getResumptionMessage(pendingAction);
+      await ctx.reply(markdownToHtml(resumptionMsg), { parse_mode: "HTML" });
+      
+      // Clear pending action and reset state machine to IDLE with updated state data
+      await conversationMachine.reset(session.id);
       await conversationMachine.updateStateData(session.id, { ...nextStateData, pendingAction: null });
       
-      // Inject user message to re-trigger handling with the newly uploaded resume context
-      const fakeText = getFakeMessageForAction(pendingAction, session.stateData?.originalMessage);
-      
-      // Re-route internally using handleMessage by creating a dummy message context
-      const modifiedCtx = {
-        ...ctx,
-        message: {
-          ...ctx.message,
-          text: fakeText,
-        }
-      } as any;
-      
-      await handleMessage(modifiedCtx);
+      await executePendingAction(ctx, user.id, session.id, pendingAction, nextStateData);
     } else {
+      await conversationMachine.reset(session.id);
+      await conversationMachine.updateStateData(session.id, nextStateData);
       await ctx.reply("What would you like me to do with your resume? (e.g. check ATS score against a JD, optimize it, analyze skills gaps, or make conversational edits). Feel free to type your request directly!");
     }
   } catch (err: any) {
@@ -103,19 +96,20 @@ export async function handleDocument(ctx: Context): Promise<void> {
   }
 }
 
-function getFakeMessageForAction(action: string, originalMessage?: string): string {
-  if (originalMessage) return originalMessage;
+function getResumptionMessage(action: string): string {
   switch (action) {
     case "ATS_SCORE":
-      return "Check ATS score";
+      return "🔄 *Resuming your request:* Checking ATS score...";
     case "OPTIMIZE_RESUME":
-      return "Optimize my resume";
+      return "🔄 *Resuming your request:* Optimizing your resume...";
     case "SKILLS_GAP":
-      return "Analyze skills gap";
+      return "🔄 *Resuming your request:* Analyzing skills gap...";
     case "EDIT_RESUME":
-      return "Edit my resume";
+      return "🔄 *Resuming your request:* Processing edits on your resume...";
+    case "EXPORT_PDF":
+      return "🔄 *Resuming your request:* Exporting PDF resume...";
     default:
-      return "Help me review my resume";
+      return "🔄 *Resuming your request:* Continuing with your resume...";
   }
 }
 

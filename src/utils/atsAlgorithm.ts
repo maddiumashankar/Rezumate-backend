@@ -225,6 +225,88 @@ export function calculateATSScore(resume: ResumeContent, jdAnalysis: JDKeywordAn
   };
 }
 
+/**
+ * Calculate general ATS quality score for a resume when no target Job Description is provided.
+ * Evaluates formatting (20%), section completeness (20%), bullet quality (35%), 
+ * skill count & organization (15%), and education details (10%).
+ */
+export function calculateStandaloneATSScore(resume: ResumeContent): ATSScore {
+  const formatScore = calculateFormatScore(resume);
+  const sectionCompleteness = calculateSectionCompleteness(resume);
+  const bulletQuality = calculateBulletQuality(resume);
+  
+  const allSkills = extractAllSkills(resume);
+  const skillScore = Math.min(100, Math.round((allSkills.length / 10) * 100));
+  const educationAlignment = resume.education.length > 0 ? 100 : 30;
+
+  const totalYears = resume.experience.reduce((sum, e) => {
+    const start = new Date(e.startDate || Date.now());
+    const end = e.endDate ? new Date(e.endDate) : new Date();
+    return sum + Math.max(0, (end.getTime() - start.getTime()) / (365.25 * 24 * 3600 * 1000));
+  }, 0);
+  const experienceRelevance = Math.min(100, Math.round(resume.experience.length * 20 + Math.min(40, totalYears * 10)));
+  const keywordMatch = skillScore;
+
+  const overallScore = Math.round(
+    formatScore * 0.20 +
+    sectionCompleteness * 0.20 +
+    bulletQuality * 0.35 +
+    skillScore * 0.15 +
+    educationAlignment * 0.10
+  );
+
+  const breakdown: ATSBreakdown = {
+    keywordMatch,
+    formatScore,
+    experienceRelevance,
+    educationAlignment,
+    sectionCompleteness,
+    bulletQuality,
+  };
+
+  const suggestions: ATSSuggestion[] = [];
+  if (!resume.summary) {
+    suggestions.push({
+      section: "Summary",
+      priority: "high",
+      suggestion: "Add a compelling professional summary highlighting your key background and target career direction",
+      impact: "Boosts first-impression ATS parsing score",
+    });
+  }
+  if (bulletQuality < 60) {
+    suggestions.push({
+      section: "Experience",
+      priority: "high",
+      suggestion: "Start experience bullets with strong action verbs (e.g., Developed, Spearheaded) and add quantifiable metrics (e.g., %, $, numbers)",
+      impact: "Significantly enhances bullet quality score and ATS ranking",
+    });
+  }
+  if (!resume.personal.linkedIn) {
+    suggestions.push({
+      section: "Personal Details",
+      priority: "medium",
+      suggestion: "Add a customized LinkedIn profile URL to your contact header",
+      impact: "Improves format & contact completeness score",
+    });
+  }
+  if (allSkills.length < 8) {
+    suggestions.push({
+      section: "Skills",
+      priority: "medium",
+      suggestion: "List more core technical tools, frameworks, and domain competencies in your skills section",
+      impact: "Enhances skill indexing by automated ATS software",
+    });
+  }
+
+  return {
+    overallScore: Math.min(100, Math.max(0, overallScore)),
+    breakdown,
+    suggestions,
+    matchedKeywords: allSkills.slice(0, 15),
+    missingKeywords: [],
+  };
+}
+
 function matchKeywords(
   resumeTokens: Set<string>,
   resumeStemmedTokens: Set<string>,

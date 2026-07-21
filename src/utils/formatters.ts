@@ -1,11 +1,33 @@
 import type { ATSScore, ResumeContent, TailoringChange } from "../types";
 
-export function formatATSScore(score: ATSScore): string {
+export function formatATSScore(score: ATSScore, isStandalone: boolean = false): string {
   const emoji = score.overallScore >= 85 ? "🟢" : score.overallScore >= 60 ? "🟡" : "🔴";
   const b = score.breakdown;
 
+  if (isStandalone) {
+    return `
+${emoji} *General ATS Readiness Score: ${score.overallScore}/100*
+
+📊 *Quality & Structure Breakdown:*
+├ Format & Header: ${b.formatScore}/100
+├ Section Completeness: ${b.sectionCompleteness}/100
+├ Bullet Point Impact: ${b.bulletQuality}/100
+├ Skill Organization: ${b.keywordMatch}/100
+└ Education & Experience Depth: ${b.experienceRelevance}/100
+
+🔑 *Indexed Key Skills (${score.matchedKeywords.length}):*
+${score.matchedKeywords.slice(0, 12).join(", ") || "None"}
+
+💡 *Top Improvement Recommendations:*
+${score.suggestions
+  .slice(0, 5)
+  .map((s, i) => `${i + 1}. [${s.priority.toUpperCase()}] ${s.suggestion}`)
+  .join("\n")}
+`.trim();
+  }
+
   return `
-${emoji} *ATS Score: ${score.overallScore}/100*
+${emoji} *ATS Compatibility Score: ${score.overallScore}/100*
 
 📊 *Breakdown:*
 ├ Keyword Match: ${b.keywordMatch}/100
