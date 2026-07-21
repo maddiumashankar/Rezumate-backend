@@ -5,7 +5,7 @@ import { jdService } from "../../services/jdService";
 import { userRepo } from "../../database/repos/userRepository";
 import { jdRepo } from "../../database/repos/jdRepository";
 import { tailorResume } from "../../agents/resumeTailorAgent";
-import { enhancedATSScore } from "../../agents/atsScorer";
+import { enhancedATSScore, standaloneATSScore } from "../../agents/atsScorer";
 import { analyzeSkillsGap, formatSkillsGap } from "../../agents/skillsAnalyzer";
 import { generateResumeAssessment, editResumeWithAI } from "../../agents/resumeEditorAgent";
 import { generateResumePDF } from "../../services/pdfService";
@@ -149,26 +149,27 @@ export async function handleMessage(ctx: Context): Promise<void> {
     }
 
     if (session.currentState === "JD_UPLOAD") {
-      // User is explicitly pasting Job Description
-      if (text.length < 30) {
-        await ctx.reply("That seems too short for a job description. Please paste the full job description details.");
+      const lower = text.trim().toLowerCase();
+      if (text.length < 30 || lower === "skip" || lower === "no" || lower === "cancel") {
+        await conversationMachine.reset(session.id);
+        // Fall through to normal intent classification below
+      } else {
+        await ctx.reply("📋 Analyzing job description...");
+        const jd = await jdService.parseAndStore(user.id, text);
+        const nextStateData = { ...session.stateData, jdId: jd.id };
+        await conversationMachine.updateStateData(session.id, nextStateData);
+        
+        await ctx.reply(`✅ *Job Description parsed:* "${jd.jobTitle}" at ${jd.companyName}.`);
+        
+        if (pendingAction) {
+          await conversationMachine.updateStateData(session.id, { ...nextStateData, pendingAction: null });
+          await executePendingAction(ctx, user.id, session.id, pendingAction, nextStateData);
+        } else {
+          await conversationMachine.reset(session.id);
+          await ctx.reply("What action would you like to run now?");
+        }
         return;
       }
-      await ctx.reply("📋 Analyzing job description...");
-      const jd = await jdService.parseAndStore(user.id, text);
-      const nextStateData = { ...session.stateData, jdId: jd.id };
-      await conversationMachine.updateStateData(session.id, nextStateData);
-      
-      await ctx.reply(`✅ *Job Description parsed:* "${jd.jobTitle}" at ${jd.companyName}.`);
-      
-      if (pendingAction) {
-        await conversationMachine.updateStateData(session.id, { ...nextStateData, pendingAction: null });
-        await executePendingAction(ctx, user.id, session.id, pendingAction, nextStateData);
-      } else {
-        await conversationMachine.reset(session.id);
-        await ctx.reply("What action would you like to run now?");
-      }
-      return;
     }
 
     // ---- Case B: Normal flow — Classify User Intent ----
@@ -288,14 +289,17 @@ async function handleAtsScoreAction(
 
   const jd = jdId ? await jdService.getById(jdId) : await jdRepo.findByUser(userId).then(rows => rows[0]);
   if (!jd) {
-    await conversationMachine.transition(sessionId, "IDLE", "JD_UPLOAD", { pendingAction: "ATS_SCORE", resumeId: resume.id, originalMessage });
-    await ctx.reply("📋 Job Description needed! Please paste the job description you want to score your resume against.");
+    await ctx.reply("📊 Calculating General ATS Readiness Score for your resume...");
+    const atsScore = await standaloneATSScore(resume.contentJson);
+    const atsFormatted = formatATSScore(atsScore, true);
+    await replyInChunks(ctx, markdownToHtml(atsFormatted), { parse_mode: "HTML" });
+    await ctx.reply(markdownToHtml("💡 *Tip:* Want to test your score against a specific job role? Paste a Job Description anytime!"), { parse_mode: "HTML" });
     return;
   }
 
-  await ctx.reply("📊 Calculating ATS compatibility score...");
+  await ctx.reply("📊 Calculating ATS compatibility score against target Job Description...");
   const atsScore = await enhancedATSScore(resume.contentJson, jd.keywordAnalysis);
-  const atsFormatted = formatATSScore(atsScore);
+  const atsFormatted = formatATSScore(atsScore, false);
   await replyInChunks(ctx, markdownToHtml(atsFormatted), { parse_mode: "HTML" });
 }
 
@@ -482,10 +486,16 @@ ${JSON.stringify(resume.contentJson, null, 2)}
   }
 }
 
-async function executePendingAction(ctx: Context, userId: string, sessionId: string, action: string, stateData: Record<string, any>): Promise<void> {
+export async function executePendingAction(ctx: Context, userId: string, sessionId: string, action: string, stateData: Record<string, any>): Promise<void> {
   const text = stateData.originalMessage || "";
   const resumeId = stateData.resumeId;
   const jdId = stateData.jdId;
+
+  // Reset state to IDLE first so session is not trapped in RESUME_UPLOAD or JD_UPLOAD
+  await conversationMachine.reset(sessionId);
+  if (resumeId || jdId) {
+    await conversationMachine.updateStateData(sessionId, { resumeId, jdId });
+  }
 
   switch (action) {
     case "ATS_SCORE":
